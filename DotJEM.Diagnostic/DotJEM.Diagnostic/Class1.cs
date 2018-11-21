@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 
 namespace DotJEM.Diagnostic
@@ -50,9 +52,23 @@ namespace DotJEM.Diagnostic
         }
     }
 
-    public class TraceEvent
+    //Fixed Data Provider!
+    public interface ITraceDataProvider
     {
-        public DateTimeOffset Time { get; }
-
+        
     }
+
+    public abstract class TraceEvent
+    {
+        public DateTimeOffset Time { get; } = HighResolutionDateTime.Now;
+        public string Correlation { get; } = CorrelationScope.Current?.ToString() ?? "00000000.00000000.00000000";
+        //TODO: Consider these as custom data instead...
+        public int ThreadId { get; } = Thread.CurrentThread.ManagedThreadId;
+        public int ProcessId { get; } = Process.GetCurrentProcess().Id;
+        public object[] Data { get; }
+
+        public override string ToString() => $"{Time:O}\t{Correlation}\t{ThreadId:D5}\t{ProcessId:D5}\t{string.Join("\t", Data)}";
+    }
+
+
 }
