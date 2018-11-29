@@ -4,7 +4,7 @@ namespace DotJEM.Diagnostic
 {
     public class Disposable : IDisposable
     {
-        public bool Disposed { get; private set; }
+        protected bool Disposed { get; private set; }
 
         public void Dispose()
         {
