@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
+using DotJEM.Diagnostic.Correlation;
 
 namespace DotJEM.Diagnostic
 {

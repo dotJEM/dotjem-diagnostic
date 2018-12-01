@@ -1,6 +1,6 @@
 ﻿using System.Threading;
 
-namespace DotJEM.Diagnostic
+namespace DotJEM.Diagnostic.Correlation
 {
     public class CorrelationScope : Disposable
     {
