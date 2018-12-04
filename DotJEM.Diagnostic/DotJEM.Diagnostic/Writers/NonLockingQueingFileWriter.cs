@@ -10,33 +10,35 @@ namespace DotJEM.Diagnostic.Writers
     public interface ITraceWriter : IDisposable
     {
         void Write(TraceEvent trace);
-        bool TryFlush();
+        Task Flush();
     }
 
     public class NonLockingQueuingTraceWriter : Disposable, ITraceWriter
     {
         private readonly Queue<TraceEvent> eventsQueue = new Queue<TraceEvent>();
-        private readonly IFileNameProvider nameProvider;
-        private readonly IWriterFactory writerFactory;
         private readonly IWriterManger writerManager;
+        private readonly ITraceEventFormatter formatter;
         private long maxSize;
         private int maxFiles;
         private bool zip;
 
 
-        public NonLockingQueuingTraceWriter(string fileName, long maxSize, int maxFiles, bool zip)
-        : this(,  maxSize, maxFiles, zip)
+        public NonLockingQueuingTraceWriter(string fileName, long maxSize, int maxFiles, bool zip, ITraceEventFormatter formatter = null)
+        : this(maxSize, maxFiles, zip, new WriterManger(fileName), formatter)
         {
 
         }
 
-        public NonLockingQueuingTraceWriter(IWriterManger writerManager, long maxSize, int maxFiles, bool zip)
+        public NonLockingQueuingTraceWriter(long maxSize, int maxFiles, bool zip, IWriterManger writerManager, ITraceEventFormatter formatter = null)
         {
-            this.nameProvider = nameProvider;
+            if (maxSize != 0 && maxSize < 1024 * 16) throw new ArgumentOutOfRangeException(nameof(maxSize));
+            if (maxFiles < 0) throw new ArgumentOutOfRangeException(nameof(maxFiles));
+
             this.writerManager = writerManager;
             this.maxSize = maxSize;
             this.maxFiles = maxFiles;
             this.zip = zip;
+            this.formatter = formatter ?? new DefaultTraceEventFormatter();
         }
 
         public void Write(TraceEvent trace)
@@ -44,35 +46,81 @@ namespace DotJEM.Diagnostic.Writers
             throw new NotImplementedException();
         }
 
-        public bool TryFlush()
+        public async Task Flush()
         {
+            //todo using(TraceWriterLock writer = writerManager.Acquire())
+            TextWriter writer = writerManager.Acquire(maxSize);
+
+            while (eventsQueue.Count > 0)
+            {
+                //tODO: Formatter!
+                await writer.WriteLineAsync(eventsQueue.Dequeue().ToString());
+            }
+            
             throw new NotImplementedException();
         }
 
 
     }
 
+    public interface ITraceEventFormatter
+    {
+        string Format(TraceEvent evt);
+    }
+
+    public class DefaultTraceEventFormatter : ITraceEventFormatter
+    {
+        public string Format(TraceEvent evt) => evt.ToString();
+    }
+
+
     public interface IWriterManger
     {
-        TextWriter Acquire();
+        TextWriter Acquire(long maxSize);
     }
 
     public class WriterManger : IWriterManger
     {
-        private FileNameProvider fileNameProvider;
-        private StreamWriterFactory streamWriterFactory;
+        private readonly IWriterFactory writerFactory;
+        private readonly IFileNameProvider fileNameProvider;
+
+        private TextWriter currentWriter;
+        private FileInfo currentFile;
 
         public WriterManger(string fileName) : this(new FileNameProvider(fileName), new StreamWriterFactory()) { }
 
-        public WriterManger(FileNameProvider fileNameProvider, StreamWriterFactory streamWriterFactory)
+        public WriterManger(IFileNameProvider fileNameProvider, IWriterFactory writerFactory)
         {
             this.fileNameProvider = fileNameProvider;
-            this.streamWriterFactory = streamWriterFactory;
+            this.writerFactory = writerFactory;
         }
 
-        public TextWriter Acquire()
+        public TextWriter Acquire(long maxSize)
         {
-            throw new NotImplementedException();
+            currentFile.Refresh();
+            if (currentFile.Length <= maxSize)
+                return currentWriter;
+
+            currentWriter?.Close();
+
+            return currentWriter = SafeOpen();
+        }
+
+        private TextWriter SafeOpen()
+        {
+            int count = 0;
+            while (true)
+            {
+                if (writerFactory.TryOpen(currentFile.FullName, out TextWriter writer))
+                    return writer;
+
+                if (count > 10)
+                    Thread.Sleep(count * 10);
+
+                currentFile = new FileInfo(fileNameProvider.Id(count));
+                count++;
+            }
+
         }
     }
 
@@ -80,8 +128,10 @@ namespace DotJEM.Diagnostic.Writers
     public interface IWriterFactory
     {
         bool TryOpen(string path, out TextWriter writer);
-
-
+        Task<TextWriter> TryOpenWithRetries(string path);
+        Task<TextWriter> TryOpenWithRetries(string path, int maxTries);
+        Task<TextWriter> TryOpenWithRetries(string path, CancellationToken cancellation);
+        Task<TextWriter> TryOpenWithRetries(string path, int maxTries, CancellationToken cancellation);
     }
 
     public class StreamWriterFactory : IWriterFactory
