@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using DotJEM.AdvParsers;
 
 namespace DotJEM.Diagnostic.Writers
 {
@@ -22,25 +23,20 @@ namespace DotJEM.Diagnostic.Writers
 
         // Should be part of the Archiver service, which instead should be a DeletingArchiver or ZippingArchiver,
         // Archivers should be composeable.
-        private long maxSize;
         private int maxFiles;
-
         private bool zip;
-
 
         private object padlock;
         private readonly Thread thread;
 
         public NonLockingQueuingTraceWriter(string fileName, long maxSize, int maxFiles, bool zip, ITraceEventFormatter formatter = null)
-        : this(new WriterManger(fileName), formatter, (zip ? (ILogArchiver)new ZippingLogArchiver(maxFiles, maxSize) : new DeletingLogArchiver(maxFiles, maxSize)))
+        : this(new WriterManger(fileName, maxSize), formatter, (zip ? (ILogArchiver)new ZippingLogArchiver(maxFiles, maxSize) : new DeletingLogArchiver(maxFiles, maxSize)))
         {
-
         }
 
         public NonLockingQueuingTraceWriter(
             IWriterManger writerManager, ITraceEventFormatter formatter = null, ILogArchiver archiver = null)
         {
-            if (maxSize != 0 && maxSize < 1024 * 16) throw new ArgumentOutOfRangeException(nameof(maxSize));
             if (maxFiles < 0) throw new ArgumentOutOfRangeException(nameof(maxFiles));
 
             this.writerManager = writerManager;
@@ -66,11 +62,13 @@ namespace DotJEM.Diagnostic.Writers
         public async Task Flush()
         {
             //todo using(TraceWriterLock writer = writerManager.Acquire())
-            TextWriter writer = writerManager.Acquire(maxSize);
             while (eventsQueue.Count > 0)
             {
+                TextWriter writer = writerManager.Acquire();
                 await writer.WriteLineAsync(formatter.Format(eventsQueue.Dequeue()));
             }
+
+
             //if (archiver.RollFile())
             //{
 
@@ -143,29 +141,44 @@ namespace DotJEM.Diagnostic.Writers
 
     public interface IWriterManger
     {
-        TextWriter Acquire(long maxSize);
+        TextWriter Acquire();
+    }
+
+    public class TextWriterProxy
+    {
+        private TextWriter currentWriter;
+
+        public TextWriterProxy(TextWriter currentWriter)
+        {
+            this.currentWriter = currentWriter;
+        }
     }
 
     public class WriterManger : IWriterManger
     {
+        private readonly long maxSizeInBytes;
         private readonly IWriterFactory writerFactory;
         private readonly IFileNameProvider fileNameProvider;
 
         private TextWriter currentWriter;
         private FileInfo currentFile;
 
-        public WriterManger(string fileName) : this(new FileNameProvider(fileName), new StreamWriterFactory()) { }
+        public WriterManger(string fileName) : this(new FileNameProvider(fileName), new StreamWriterFactory(), 64.KiloBytes()) { }
+        public WriterManger(string fileName, long maxSizeInBytes) : this(new FileNameProvider(fileName), new StreamWriterFactory(), maxSizeInBytes) { }
 
-        public WriterManger(IFileNameProvider fileNameProvider, IWriterFactory writerFactory)
+        public WriterManger(IFileNameProvider fileNameProvider, IWriterFactory writerFactory, long maxSizeInBytes)
         {
+            if (maxSizeInBytes != 0 && maxSizeInBytes < 16.KiloBytes()) throw new ArgumentOutOfRangeException(nameof(maxSizeInBytes));
+
             this.fileNameProvider = fileNameProvider;
             this.writerFactory = writerFactory;
+            this.maxSizeInBytes = maxSizeInBytes;
         }
 
-        public TextWriter Acquire(long maxSize)
+        public TextWriter Acquire()
         {
             currentFile.Refresh();
-            if (currentFile.Length <= maxSize)
+            if (currentFile.Length <= maxSizeInBytes)
                 return currentWriter;
 
             currentWriter?.Close();
@@ -187,7 +200,6 @@ namespace DotJEM.Diagnostic.Writers
                 currentFile = new FileInfo(fileNameProvider.Id(count));
                 count++;
             }
-
         }
     }
 
