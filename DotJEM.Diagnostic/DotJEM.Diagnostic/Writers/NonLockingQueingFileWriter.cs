@@ -23,21 +23,17 @@ namespace DotJEM.Diagnostic.Writers
 
         // Should be part of the Archiver service, which instead should be a DeletingArchiver or ZippingArchiver,
         // Archivers should be composeable.
-        private int maxFiles;
-        private bool zip;
 
-        private object padlock;
+        private readonly object padlock = new object();
         private readonly Thread thread;
 
         public NonLockingQueuingTraceWriter(string fileName, long maxSize, int maxFiles, bool zip, ITraceEventFormatter formatter = null)
-        : this(new WriterManger(fileName, maxSize), formatter, (zip ? (ILogArchiver)new ZippingLogArchiver(maxFiles, maxSize) : new DeletingLogArchiver(maxFiles, maxSize)))
+        : this(new WriterManger(fileName, maxSize), formatter, (zip ? (ILogArchiver)new ZippingLogArchiver(maxFiles) : new DeletingLogArchiver(maxFiles)))
         {
         }
 
-        public NonLockingQueuingTraceWriter(
-            IWriterManger writerManager, ITraceEventFormatter formatter = null, ILogArchiver archiver = null)
+        public NonLockingQueuingTraceWriter(IWriterManger writerManager, ITraceEventFormatter formatter = null, ILogArchiver archiver = null)
         {
-            if (maxFiles < 0) throw new ArgumentOutOfRangeException(nameof(maxFiles));
 
             this.writerManager = writerManager;
             this.archiver = archiver;
@@ -61,13 +57,15 @@ namespace DotJEM.Diagnostic.Writers
 
         public async Task Flush()
         {
-            //todo using(TraceWriterLock writer = writerManager.Acquire())
             while (eventsQueue.Count > 0)
             {
-                TextWriter writer = writerManager.Acquire();
+                //TODO: This looks a bit silly, from this perspective it would be nice if the ITextWriter would just replace it's
+                //      internal writer as needed underneath without us having to care about it here.
+                //      This would also mean we could Acquire the writer, run the write loop and finally flush when the Queue is empty.
+                ITextWriter writer = writerManager.Acquire();
                 await writer.WriteLineAsync(formatter.Format(eventsQueue.Dequeue()));
             }
-
+            await writerManager.Acquire().FlushAsync();
 
             //if (archiver.RollFile())
             //{
@@ -116,16 +114,16 @@ namespace DotJEM.Diagnostic.Writers
 
     public class DeletingLogArchiver : ILogArchiver
     {
-        public DeletingLogArchiver(int maxFiles, long maxSize)
+        public DeletingLogArchiver(int maxFiles)
         {
-
+            if (maxFiles < 0) throw new ArgumentOutOfRangeException(nameof(maxFiles));
         }
 
     }
     public class ZippingLogArchiver : ILogArchiver {
-        public ZippingLogArchiver(int maxFiles, long maxSize)
+        public ZippingLogArchiver(int maxFiles)
         {
-            
+            if (maxFiles < 0) throw new ArgumentOutOfRangeException(nameof(maxFiles));
         }
     }
 
@@ -141,17 +139,44 @@ namespace DotJEM.Diagnostic.Writers
 
     public interface IWriterManger
     {
-        TextWriter Acquire();
+        ITextWriter Acquire();
     }
 
-    public class TextWriterProxy
+    public interface ITextWriter
     {
-        private TextWriter currentWriter;
+        long Size { get; }
+        void Close();
+        Task WriteLineAsync(string format);
+        Task FlushAsync();
+    }
 
-        public TextWriterProxy(TextWriter currentWriter)
+    public class TextWriterProxy : ITextWriter
+    {
+        private readonly TextWriter writer;
+        private readonly int newLineByteCount;
+
+        public long Size { get; private set; }
+
+        public TextWriterProxy(TextWriter current, long currentSize)
         {
-            this.currentWriter = currentWriter;
+            Size = currentSize;
+            writer = current;
+            newLineByteCount = writer.Encoding.GetByteCount(writer.NewLine);
         }
+
+        public async Task WriteLineAsync(string value)
+        {
+            //Note: This is significantly faster than having to refresh the file each time.
+            //      As an added bonus, we don't have to flush explicitly each time to get the
+            //      size which only saves even more time. That doesn't exclude us from
+            //      explicitly flushing in other scenarios to ensure that data is written to the disk though.
+      
+            Size += writer.Encoding.GetByteCount(value) + newLineByteCount;
+            await writer.WriteLineAsync(value);
+        }
+
+        public async Task FlushAsync() => await writer.FlushAsync();
+        public void Close() => writer.Close();
     }
 
     public class WriterManger : IWriterManger
@@ -160,7 +185,7 @@ namespace DotJEM.Diagnostic.Writers
         private readonly IWriterFactory writerFactory;
         private readonly IFileNameProvider fileNameProvider;
 
-        private TextWriter currentWriter;
+        private ITextWriter currentWriter;
         private FileInfo currentFile;
 
         public WriterManger(string fileName) : this(new FileNameProvider(fileName), new StreamWriterFactory(), 64.KiloBytes()) { }
@@ -175,23 +200,21 @@ namespace DotJEM.Diagnostic.Writers
             this.maxSizeInBytes = maxSizeInBytes;
         }
 
-        public TextWriter Acquire()
+        public ITextWriter Acquire()
         {
-            currentFile.Refresh();
-            if (currentFile.Length <= maxSizeInBytes)
+            if (currentWriter.Size <= maxSizeInBytes)
                 return currentWriter;
 
             currentWriter?.Close();
-
             return currentWriter = SafeOpen();
         }
 
-        private TextWriter SafeOpen()
+        private ITextWriter SafeOpen()
         {
             int count = 0;
             while (true)
             {
-                if (writerFactory.TryOpen(currentFile.FullName, out TextWriter writer))
+                if (writerFactory.TryOpen(currentFile.FullName, out ITextWriter writer))
                     return writer;
 
                 if (count > 10)
@@ -206,20 +229,22 @@ namespace DotJEM.Diagnostic.Writers
 
     public interface IWriterFactory
     {
-        bool TryOpen(string path, out TextWriter writer);
-        Task<TextWriter> TryOpenWithRetries(string path);
-        Task<TextWriter> TryOpenWithRetries(string path, int maxTries);
-        Task<TextWriter> TryOpenWithRetries(string path, CancellationToken cancellation);
-        Task<TextWriter> TryOpenWithRetries(string path, int maxTries, CancellationToken cancellation);
+        bool TryOpen(string path, out ITextWriter writer);
+        Task<ITextWriter> TryOpenWithRetries(string path);
+        Task<ITextWriter> TryOpenWithRetries(string path, int maxTries);
+        Task<ITextWriter> TryOpenWithRetries(string path, CancellationToken cancellation);
+        Task<ITextWriter> TryOpenWithRetries(string path, int maxTries, CancellationToken cancellation);
     }
 
     public class StreamWriterFactory : IWriterFactory
     {
-        public bool TryOpen(string path, out TextWriter writer)
+        public bool TryOpen(string path, out ITextWriter writer)
         {
             try
             {
-                writer = new StreamWriter(path, true);
+                FileInfo file = new FileInfo(path);
+                StreamWriter streamWriter = new StreamWriter(path, true);
+                writer = new TextWriterProxy(streamWriter, file.Length);
                 return true;
             }
             catch
@@ -229,23 +254,23 @@ namespace DotJEM.Diagnostic.Writers
             }
         }
 
-        public async Task<TextWriter> TryOpenWithRetries(string path)
+        public async Task<ITextWriter> TryOpenWithRetries(string path)
             => await TryOpenWithRetries(path, 100, CancellationToken.None);
 
-        public async Task<TextWriter> TryOpenWithRetries(string path, int maxTries)
+        public async Task<ITextWriter> TryOpenWithRetries(string path, int maxTries)
             => await TryOpenWithRetries(path, maxTries, CancellationToken.None);
 
-        public async Task<TextWriter> TryOpenWithRetries(string path, CancellationToken cancellation)
+        public async Task<ITextWriter> TryOpenWithRetries(string path, CancellationToken cancellation)
             => await TryOpenWithRetries(path, 100, cancellation);
 
-        public async Task<TextWriter> TryOpenWithRetries(string path, int maxTries, CancellationToken cancellation)
+        public async Task<ITextWriter> TryOpenWithRetries(string path, int maxTries, CancellationToken cancellation)
         {
             for (int i = 0; i < maxTries; i++)
             {
                 if (cancellation.IsCancellationRequested)
                     return null;
 
-                if (TryOpen(path, out TextWriter writer))
+                if (TryOpen(path, out ITextWriter writer))
                     return writer;
 
                 if (i > maxTries / 10)
