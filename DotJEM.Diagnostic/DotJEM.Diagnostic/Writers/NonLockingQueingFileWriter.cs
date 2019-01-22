@@ -34,7 +34,6 @@ namespace DotJEM.Diagnostic.Writers
 
         public NonLockingQueuingTraceWriter(IWriterManger writerManager, ITraceEventFormatter formatter = null, ILogArchiver archiver = null)
         {
-
             this.writerManager = writerManager;
             this.archiver = archiver;
             this.formatter = formatter ?? new DefaultTraceEventFormatter();

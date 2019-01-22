@@ -4,24 +4,27 @@ namespace DotJEM.Diagnostic.Correlation
 {
     public class CorrelationScope : Disposable
     {
-        public static AsyncLocal<CorrelationScope> Current { get; } = new AsyncLocal<CorrelationScope>();
+        private static readonly AsyncLocal<CorrelationScope> current = new AsyncLocal<CorrelationScope>();
+
+        public static CorrelationScope Current => current.Value;
+
         public string Id { get; }
         public string CorrelationId { get; }
         public CorrelationScope Parent { get; }
 
         public CorrelationScope()
         {
-            Parent = Current.Value;
+            Parent = Current;
 
             Id = IdProvider.Default.Next;
             CorrelationId = Parent?.CorrelationId ?? IdProvider.Default.Next;
 
-            Current.Value = this;
+            current.Value = this;
         }
 
         protected override void Dispose(bool disposing)
         {
-            Current.Value = Parent;
+            current.Value = Parent;
             base.Dispose(disposing);
         }
 

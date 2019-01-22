@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using DotJEM.Diagnostic;
+using DotJEM.Diagnostic.Correlation;
 
 namespace Demo
 {
@@ -13,14 +14,19 @@ namespace Demo
     {
         private static Random rnd = new Random();
         protected internal const int ITTERATIONS = 1000000 /4;
+        private static IPerformanceMonitor monitor;
 
         static void Main(string[] args)
         {
-            SplitTask(3, "0").Wait();
+            monitor = new PerformanceMonitorBuilder()
+                .Build();
+
+            Task.WaitAll(
+                Enumerable.Range(0, 5).Select(i => SplitTask(3, i.ToString())).ToArray()
+            );
+
+            //SplitTask(3, "0").Wait();
         }
-
-        
-
 
         static async Task SplitTask(int depth, string msg)
         {
@@ -29,10 +35,15 @@ namespace Demo
             {
                 using (new CorrelationScope())
                 {
-                    Console.WriteLine($"Running {msg} - {CorrelationScope.Current?.Value}");
-                    await Task.WhenAll(Enumerable.Range(0, 10)
-                        .Select(async i => await SplitTask(depth - 1, $"{msg}.{i}").ConfigureAwait(false)))
-                        .ConfigureAwait(false);
+                    //monitor.Trace("foo", new { Name = msg });
+                    using (var tracker = monitor.Track("Foobar", new {Name = msg}))
+                    {
+                        //Console.WriteLine($"Running {msg} - {CorrelationScope.Current?.Value}");
+                        await Task.WhenAll(Enumerable.Range(0, 10)
+                                .Select(async i => await SplitTask(depth - 1, $"{msg}.{i}").ConfigureAwait(false)))
+                            .ConfigureAwait(false);
+                        tracker.Commit();
+                    }
                 }
             }
         }
