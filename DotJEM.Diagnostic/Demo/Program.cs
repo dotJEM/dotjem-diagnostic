@@ -6,25 +6,33 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using DotJEM.Diagnostic;
+using DotJEM.Diagnostic.Collectors;
 using DotJEM.Diagnostic.Correlation;
+using DotJEM.Diagnostic.DataProviders;
 
 namespace Demo
 {
     class Program
     {
+        private class RandomProvider : ICustomDataProvider
+        {
+            public object Data => rnd.Next();
+            public string Format => "D9";
+        }
         private static Random rnd = new Random();
         protected internal const int ITTERATIONS = 1000000 /4;
-        private static IPerformanceMonitor monitor;
+        private static ILogger _logger;
 
         static void Main(string[] args)
         {
-            monitor = new PerformanceMonitorBuilder()
+            _logger = new HighPrecisionLoggerBuilder(new ConsoleTraceEventCollector())
+                .AddProvider("random", new RandomProvider())
                 .Build();
 
             Task.WaitAll(
                 Enumerable.Range(0, 5).Select(i => SplitTask(3, i.ToString())).ToArray()
             );
-
+            Console.ReadKey();
             //SplitTask(3, "0").Wait();
         }
 
@@ -35,14 +43,14 @@ namespace Demo
             {
                 using (new CorrelationScope())
                 {
-                    //monitor.Trace("foo", new { Name = msg });
-                    using (var tracker = monitor.Track("Foobar", new {Name = msg}))
+                    //_logger.Log("foo", new { Name = msg });
+                    using (IPerformanceTracker tracker = _logger.Track("Foobar", new {Name = msg}))
                     {
                         //Console.WriteLine($"Running {msg} - {CorrelationScope.Current?.Value}");
                         await Task.WhenAll(Enumerable.Range(0, 10)
                                 .Select(async i => await SplitTask(depth - 1, $"{msg}.{i}").ConfigureAwait(false)))
                             .ConfigureAwait(false);
-                        tracker.Commit();
+                        //tracker.Commit();
                     }
                 }
             }

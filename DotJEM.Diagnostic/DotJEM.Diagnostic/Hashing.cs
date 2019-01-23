@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 
 namespace DotJEM.Diagnostic
@@ -29,21 +28,6 @@ namespace DotJEM.Diagnostic
                 hasher.Dispose();
             }
             base.Dispose(disposing);
-        }
-    }
-
-    public class HighResolutionDateTime
-    {
-        [DllImport("Kernel32.dll", CallingConvention = CallingConvention.Winapi)]
-        static extern void GetSystemTimePreciseAsFileTime(out long fileTime);
-
-        public static DateTimeOffset Now
-        {
-            get
-            {
-                GetSystemTimePreciseAsFileTime(out var fileTime);
-                return DateTimeOffset.FromFileTime(fileTime);
-            }
         }
     }
 }

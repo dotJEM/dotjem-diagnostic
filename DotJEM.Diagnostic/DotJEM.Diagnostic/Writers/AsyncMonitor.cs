@@ -6,7 +6,7 @@ namespace DotJEM.Diagnostic.Writers
 {
     public sealed class AsyncMonitor
     {
-        //https://stackoverflow.com/questions/34792699/async-version-of-monitor-pulse-wait
+        //https://stackoverflow.com/questions/34792699/async-version-of-_logger-pulse-wait
         public struct Awaitable : INotifyCompletion
         {
             // We use a struct to avoid allocations. Note that this means the compiler will copy

@@ -7,6 +7,7 @@ namespace DotJEM.Diagnostic.Correlation
         private static readonly AsyncLocal<CorrelationScope> current = new AsyncLocal<CorrelationScope>();
 
         public static CorrelationScope Current => current.Value;
+        public static string Identifier => Current?.ToString() ?? "00000000.00000000.00000000";
 
         public string Id { get; }
         public string CorrelationId { get; }
@@ -17,7 +18,9 @@ namespace DotJEM.Diagnostic.Correlation
             Parent = Current;
 
             Id = IdProvider.Default.Next;
-            CorrelationId = Parent?.CorrelationId ?? IdProvider.Default.Next;
+            //CorrelationId = Parent?.CorrelationId ?? IdProvider.Default.Next;
+            //Note: This saves us some time and shouldn't really cause any correlation issues, if it does we can reinstate a unique ID for the Root.
+            CorrelationId = Parent?.CorrelationId ?? Id;
 
             current.Value = this;
         }
@@ -28,9 +31,6 @@ namespace DotJEM.Diagnostic.Correlation
             base.Dispose(disposing);
         }
 
-        public override string ToString()
-        {
-            return $"{CorrelationId}.{Id}.{Parent?.Id??"00000000"}";
-        }
+        public override string ToString() => $"{CorrelationId}.{Id}.{Parent?.Id??"00000000"}";
     }
 }

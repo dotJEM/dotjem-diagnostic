@@ -1,48 +1,47 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using DotJEM.Diagnostic.Collectors;
 using DotJEM.Diagnostic.DataProviders;
 
 namespace DotJEM.Diagnostic
 {
-    public interface IPerformanceMonitorBuilder
+    public interface ILoggerBuilder
     {
-        IPerformanceMonitorBuilder AddProvider(string name, ICustomDataProvider provider);
-        IPerformanceMonitorBuilder ClearProviders();
-        IPerformanceMonitorBuilder InsertProvider(int index, string name, ICustomDataProvider provider);
-        IPerformanceMonitorBuilder RemoveProvider(string name);
-        IPerformanceMonitorBuilder ReplaceOrAddProvider(string name, ICustomDataProvider provider);
-        IPerformanceMonitor Build();
+        ILoggerBuilder AddProvider(string name, ICustomDataProvider provider);
+        ILoggerBuilder ClearProviders();
+        ILoggerBuilder InsertProvider(int index, string name, ICustomDataProvider provider);
+        ILoggerBuilder RemoveProvider(string name);
+        ILoggerBuilder ReplaceOrAddProvider(string name, ICustomDataProvider provider);
+        ILogger Build();
     }
 
-    public class PerformanceMonitorBuilder : IPerformanceMonitorBuilder
+    public class HighPrecisionLoggerBuilder : ILoggerBuilder
     {
         private readonly HashSet<string> names;
         private readonly List<(string Name, ICustomDataProvider Provider)> providers;
+        private readonly ITraceEventCollector collector;
 
-        public PerformanceMonitorBuilder()
-            : this(
+        public HighPrecisionLoggerBuilder(ITraceEventCollector collector)
+        {
+            this.collector = collector;
+            this.providers = new List<(string Name, ICustomDataProvider Provider)>
+            {
                 ("Identity", new IdentityProvider()),
                 ("Thread", new ThreadIdProvider()),
                 ("Process", new ProcessIdProvider())
-            )
-        {
-        }
-
-        public PerformanceMonitorBuilder(params (string Name, ICustomDataProvider Provider)[] providers)
-        {
-            this.providers = providers.ToList();
+            };
             this.names = new HashSet<string>(providers.Select(tuple => tuple.Name));
         }
 
-        public IPerformanceMonitorBuilder ClearProviders()
+        public ILoggerBuilder ClearProviders()
         {
             names.Clear();
             providers.Clear();
             return this;
         }
 
-        public IPerformanceMonitorBuilder InsertProvider(int index, string name, ICustomDataProvider provider)
+        public ILoggerBuilder InsertProvider(int index, string name, ICustomDataProvider provider)
         {
             if (names.Contains(name))
             {
@@ -53,7 +52,7 @@ namespace DotJEM.Diagnostic
             return this;
         }
 
-        public IPerformanceMonitorBuilder AddProvider(string name, ICustomDataProvider provider)
+        public ILoggerBuilder AddProvider(string name, ICustomDataProvider provider)
         {
             if (names.Contains(name))
             {
@@ -64,7 +63,7 @@ namespace DotJEM.Diagnostic
             return this;
         }
 
-        public IPerformanceMonitorBuilder RemoveProvider(string name)
+        public ILoggerBuilder RemoveProvider(string name)
         {
             if (names.Remove(name))
             {
@@ -73,7 +72,7 @@ namespace DotJEM.Diagnostic
             return this;
         }
 
-        public IPerformanceMonitorBuilder ReplaceOrAddProvider(string name, ICustomDataProvider provider)
+        public ILoggerBuilder ReplaceOrAddProvider(string name, ICustomDataProvider provider)
         {
             if (names.Contains(name))
             {
@@ -87,9 +86,9 @@ namespace DotJEM.Diagnostic
             return this;
         }
 
-        public IPerformanceMonitor Build()
+        public ILogger Build()
         {
-            return new PerformanceMonitor(providers.ToDictionary(t => t.Name, t => t.Provider));
+            return new HighPrecisionLogger(collector, providers.ToDictionary(t => t.Name, t => t.Provider));
         }
     }
 }
