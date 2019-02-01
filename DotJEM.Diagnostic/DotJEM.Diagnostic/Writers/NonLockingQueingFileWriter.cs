@@ -8,12 +8,6 @@ using DotJEM.AdvParsers;
 
 namespace DotJEM.Diagnostic.Writers
 {
-    public interface ITraceWriter : IDisposable
-    {
-        void Write(TraceEvent trace);
-        Task Flush();
-    }
-
     public class NonLockingQueuingTraceWriter : Disposable, ITraceWriter
     {
         private readonly Queue<TraceEvent> eventsQueue = new Queue<TraceEvent>();
@@ -42,16 +36,19 @@ namespace DotJEM.Diagnostic.Writers
             thread.Start();
         }
 
-        public void Write(TraceEvent trace)
+        public async Task Write(TraceEvent trace)
         {
             if(Disposed)
                 return;
 
-            lock (padlock)
+            await Task.Run(() =>
             {
-                eventsQueue.Enqueue(trace);
-                Monitor.PulseAll(padlock);
-            }
+                lock (padlock)
+                {
+                    eventsQueue.Enqueue(trace);
+                    Monitor.PulseAll(padlock);
+                }
+            });
         }
 
         public async Task Flush()
