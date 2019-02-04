@@ -36,7 +36,7 @@ namespace DotJEM.Diagnostic.Collectors
 
     public class TraceEventCollector : ITraceEventCollector
     {
-        private ITraceWriter writer;
+        private readonly ITraceWriter writer;
 
         public TraceEventCollector(ITraceWriter writer)
         {

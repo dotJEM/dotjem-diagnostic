@@ -41,14 +41,11 @@ namespace DotJEM.Diagnostic.Writers
             if(Disposed)
                 return;
 
-            await Task.Run(() =>
+            lock (padlock)
             {
-                lock (padlock)
-                {
-                    eventsQueue.Enqueue(trace);
-                    Monitor.PulseAll(padlock);
-                }
-            });
+                eventsQueue.Enqueue(trace);
+                Monitor.PulseAll(padlock);
+            }
         }
 
         public async Task Flush()
@@ -59,9 +56,9 @@ namespace DotJEM.Diagnostic.Writers
                 //      internal writer as needed underneath without us having to care about it here.
                 //      This would also mean we could Acquire the writer, run the write loop and finally flush when the Queue is empty.
                 ITextWriter writer = writerManager.Acquire();
-                await writer.WriteLineAsync(formatter.Format(eventsQueue.Dequeue()));
+                await writer.WriteLineAsync(formatter.Format(eventsQueue.Dequeue())).ConfigureAwait(false);
             }
-            await writerManager.Acquire().FlushAsync();
+            await writerManager.Acquire().FlushAsync().ConfigureAwait(false);
 
             //if (archiver.RollFile())
             //{
@@ -79,7 +76,13 @@ namespace DotJEM.Diagnostic.Writers
                     {
                         if (eventsQueue.Count < 1)
                             Monitor.Wait(padlock);
-                        Flush().Wait();
+                        try
+                        {
+                            Flush().Wait();
+                        }
+                        catch (Exception e)
+                        {
+                        }
                     }
                 }
             }
@@ -87,7 +90,7 @@ namespace DotJEM.Diagnostic.Writers
             {
                 Flush().Wait();
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 //TODO: Ignore for now, but we need an idea of how to deal with this.
             }
@@ -189,16 +192,18 @@ namespace DotJEM.Diagnostic.Writers
 
         public WriterManger(IFileNameProvider fileNameProvider, IWriterFactory writerFactory, long maxSizeInBytes)
         {
-            if (maxSizeInBytes != 0 && maxSizeInBytes < 16.KiloBytes()) throw new ArgumentOutOfRangeException(nameof(maxSizeInBytes));
+            if (maxSizeInBytes != 0 && maxSizeInBytes < 8.KiloBytes()) throw new ArgumentOutOfRangeException(nameof(maxSizeInBytes));
 
             this.fileNameProvider = fileNameProvider;
             this.writerFactory = writerFactory;
             this.maxSizeInBytes = maxSizeInBytes;
+
+            this.currentFile = new FileInfo(fileNameProvider.FullName);
         }
 
         public ITextWriter Acquire()
         {
-            if (currentWriter.Size <= maxSizeInBytes)
+            if (currentWriter?.Size <= maxSizeInBytes)
                 return currentWriter;
 
             currentWriter?.Close();

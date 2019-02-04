@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
@@ -9,6 +10,7 @@ using DotJEM.Diagnostic;
 using DotJEM.Diagnostic.Collectors;
 using DotJEM.Diagnostic.Correlation;
 using DotJEM.Diagnostic.DataProviders;
+using DotJEM.Diagnostic.Writers;
 
 namespace Demo
 {
@@ -25,7 +27,12 @@ namespace Demo
 
         static void Main(string[] args)
         {
-            _logger = new HighPrecisionLoggerBuilder(new ConsoleTraceEventCollector())
+            Directory.CreateDirectory("logs");
+            var collector = new CompositeTraceEventCollector(
+                new TraceEventCollector(new ConsoleWriter()),
+                new TraceEventCollector(new NonLockingQueuingTraceWriter("logs\\trace.log", 12000, 5, true, new DefaultTraceEventFormatter())));
+
+            _logger = new HighPrecisionLoggerBuilder(collector)
                 .AddProvider("random", new RandomProvider())
                 .Build();
 
