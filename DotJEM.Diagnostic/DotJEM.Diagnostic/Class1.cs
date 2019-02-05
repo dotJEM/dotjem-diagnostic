@@ -71,7 +71,7 @@ namespace DotJEM.Diagnostic
         public async Task LogAsync(string type, object customData = null)
         {
             TraceEvent evt = new TraceEvent(type, HighResolutionTime.Now, CorrelationScope.Identifier, providers.Select(p => new CustomData(p.Key, p.Value.Data, p.Value.Format)), customData);
-            await collector.Collect(evt);
+            await collector.Collect(evt).ConfigureAwait(false);
         }
     }
 

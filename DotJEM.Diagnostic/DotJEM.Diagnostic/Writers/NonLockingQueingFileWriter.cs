@@ -46,24 +46,35 @@ namespace DotJEM.Diagnostic.Writers
                 eventsQueue.Enqueue(trace);
                 Monitor.PulseAll(padlock);
             }
+
+            await Task.CompletedTask.ConfigureAwait(false);
         }
 
         public async Task Flush()
         {
-            while (eventsQueue.Count > 0)
-            {
-                //TODO: This looks a bit silly, from this perspective it would be nice if the ITextWriter would just replace it's
-                //      internal writer as needed underneath without us having to care about it here.
-                //      This would also mean we could Acquire the writer, run the write loop and finally flush when the Queue is empty.
-                ITextWriter writer = writerManager.Acquire();
-                await writer.WriteLineAsync(formatter.Format(eventsQueue.Dequeue())).ConfigureAwait(false);
-            }
+            while (eventsQueue.Count > 16)
+                await BufferedWrite().ConfigureAwait(false);
+            await BufferedWrite().ConfigureAwait(false);
             await writerManager.Acquire().FlushAsync().ConfigureAwait(false);
 
             //if (archiver.RollFile())
             //{
 
             //}
+        }
+
+        private async Task BufferedWrite()
+        {
+            int count = Math.Min(eventsQueue.Count, 64);
+            string[] lines = new string[count];
+            for (int i = 0; i < count; i++)
+                lines[i] = formatter.Format(eventsQueue.Dequeue());
+
+            //TODO: This looks a bit silly, from this perspective it would be nice if the ITextWriter would just replace it's
+            //      internal writer as needed underneath without us having to care about it here.
+            //      This would also mean we could Acquire the writer, run the write loop and finally flush when the Queue is empty.
+            ITextWriter writer = writerManager.Acquire();
+            await writer.WriteLinesAsync(lines).ConfigureAwait(false);
         }
 
         private void WriteLoop()
@@ -145,7 +156,8 @@ namespace DotJEM.Diagnostic.Writers
     {
         long Size { get; }
         void Close();
-        Task WriteLineAsync(string format);
+        Task WriteLineAsync(string value);
+        Task WriteLinesAsync(params string[] values);
         Task FlushAsync();
     }
 
@@ -169,12 +181,17 @@ namespace DotJEM.Diagnostic.Writers
             //      As an added bonus, we don't have to flush explicitly each time to get the
             //      size which only saves even more time. That doesn't exclude us from
             //      explicitly flushing in other scenarios to ensure that data is written to the disk though.
-      
+     
             Size += writer.Encoding.GetByteCount(value) + newLineByteCount;
-            await writer.WriteLineAsync(value);
+            await writer.WriteLineAsync(value).ConfigureAwait(false);
         }
 
-        public async Task FlushAsync() => await writer.FlushAsync();
+        public async Task WriteLinesAsync(params string[] values)
+        {
+            await WriteLineAsync(string.Join(writer.NewLine, values)).ConfigureAwait(false);
+        }
+
+        public async Task FlushAsync() => await writer.FlushAsync().ConfigureAwait(false);
         public void Close() => writer.Close();
     }
 
@@ -256,13 +273,13 @@ namespace DotJEM.Diagnostic.Writers
         }
 
         public async Task<ITextWriter> TryOpenWithRetries(string path)
-            => await TryOpenWithRetries(path, 100, CancellationToken.None);
+            => await TryOpenWithRetries(path, 100, CancellationToken.None).ConfigureAwait(false);
 
         public async Task<ITextWriter> TryOpenWithRetries(string path, int maxTries)
-            => await TryOpenWithRetries(path, maxTries, CancellationToken.None);
+            => await TryOpenWithRetries(path, maxTries, CancellationToken.None).ConfigureAwait(false);
 
         public async Task<ITextWriter> TryOpenWithRetries(string path, CancellationToken cancellation)
-            => await TryOpenWithRetries(path, 100, cancellation);
+            => await TryOpenWithRetries(path, 100, cancellation).ConfigureAwait(false);
 
         public async Task<ITextWriter> TryOpenWithRetries(string path, int maxTries, CancellationToken cancellation)
         {
@@ -275,7 +292,7 @@ namespace DotJEM.Diagnostic.Writers
                     return writer;
 
                 if (i > maxTries / 10)
-                    await Task.Delay(i * 10, cancellation);
+                    await Task.Delay(i * 10, cancellation).ConfigureAwait(false);
             }
             return null;
         }

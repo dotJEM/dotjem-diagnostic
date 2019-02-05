@@ -20,7 +20,7 @@ namespace DotJEM.Diagnostic.Collectors
 
     public class CompositeTraceEventCollector : ITraceEventCollector
     {
-        private readonly List<ITraceEventCollector> collectors = new List<ITraceEventCollector>();
+        private readonly List<ITraceEventCollector> collectors;
 
         public CompositeTraceEventCollector(params ITraceEventCollector[] collectors) 
             : this(collectors.AsEnumerable())
@@ -31,7 +31,7 @@ namespace DotJEM.Diagnostic.Collectors
         {
             this.collectors = collectors.ToList();
         }
-        public async Task Collect(TraceEvent trace) => await Task.WhenAll(collectors.Select(collector => collector.Collect(trace)));
+        public async Task Collect(TraceEvent trace) => await Task.WhenAll(collectors.Select(collector => collector.Collect(trace))).ConfigureAwait(false);
     }
 
     public class TraceEventCollector : ITraceEventCollector
@@ -43,7 +43,7 @@ namespace DotJEM.Diagnostic.Collectors
             this.writer = writer;
         }
 
-        public async Task Collect(TraceEvent trace) => await writer.Write(trace);
+        public async Task Collect(TraceEvent trace) => await writer.Write(trace).ConfigureAwait(false);
     }
 
 }
