@@ -19,7 +19,9 @@ namespace DotJEM.Diagnostic.Writers
         // Archivers should be composeable.
 
         private readonly object padlock = new object();
-        private readonly Thread thread;
+        private readonly AsyncMonitor monitor = new AsyncMonitor();
+
+        private bool started = false;
 
         public NonLockingQueuingTraceWriter(string fileName, long maxSize, int maxFiles, bool zip, ITraceEventFormatter formatter = null)
         : this(new WriterManger(fileName, maxSize), formatter, (zip ? (ILogArchiver)new ZippingLogArchiver(maxFiles) : new DeletingLogArchiver(maxFiles)))
@@ -32,28 +34,30 @@ namespace DotJEM.Diagnostic.Writers
             this.archiver = archiver;
             this.formatter = formatter ?? new DefaultTraceEventFormatter();
 
-            thread = new Thread(WriteLoop);
-            thread.Start();
+            
         }
 
-        public async Task Write(TraceEvent trace)
+        public Task Write(TraceEvent trace)
         {
             if(Disposed)
-                return;
+                return Task.CompletedTask;
 
-            lock (padlock)
-            {
-                eventsQueue.Enqueue(trace);
-                Monitor.PulseAll(padlock);
-            }
+            eventsQueue.Enqueue(trace);
+            monitor.Pulse(false);
+            //lock (padlock)
+            //{
+            //    Monitor.PulseAll(padlock);
+            //}
+            EnsureWriteLoop();
 
-            await Task.CompletedTask.ConfigureAwait(false);
+            return Task.CompletedTask;
         }
 
         public async Task Flush()
         {
             while (eventsQueue.Count > 16)
                 await BufferedWrite().ConfigureAwait(false);
+
             await BufferedWrite().ConfigureAwait(false);
             await writerManager.Acquire().FlushAsync().ConfigureAwait(false);
 
@@ -77,34 +81,63 @@ namespace DotJEM.Diagnostic.Writers
             await writer.WriteLinesAsync(lines).ConfigureAwait(false);
         }
 
-        private void WriteLoop()
+        private Thread thread;
+        private void EnsureWriteLoop()
         {
-            try
+            lock (padlock)
             {
-                lock (padlock)
-                {
-                    while (true)
-                    {
-                        if (eventsQueue.Count < 1)
-                            Monitor.Wait(padlock);
-                        try
-                        {
-                            Flush().Wait();
-                        }
-                        catch (Exception e)
-                        {
-                        }
-                    }
-                }
+                if (started)
+                    return;
+                started = true;
             }
-            catch (ThreadAbortException)
+            thread = new Thread(() => WriteLoop().Wait());
+            thread.Start();
+        }
+
+        private async Task WriteLoop()
+        {
+            while (true)
             {
-                Flush().Wait();
+                await monitor.Wait();
+                await Flush().ConfigureAwait(false);
+
+                if(Disposed)
+                    break;
             }
-            catch (Exception ex)
-            {
-                //TODO: Ignore for now, but we need an idea of how to deal with this.
-            }
+
+            await monitor.Wait();
+            await Flush().ConfigureAwait(false);
+
+            //try
+            //{
+
+            //    lock (padlock)
+            //    //{
+            //    //    while (true)
+            //    //    {
+            //    //        await monitor.Wait();
+
+            //    //        if (eventsQueue.Count < 1)
+            //    //            Monitor.Wait(padlock);
+
+            //    //        try
+            //    //        {
+            //    //            Flush().ConfigureAwait(false).GetAwaiter().GetResult();
+            //    //        }
+            //    //        catch (Exception e)
+            //    //        {
+            //    //        }
+            //    //    }
+            //    //}
+            //}
+            //catch (ThreadAbortException)
+            //{
+            //    //Flush().ConfigureAwait(false).GetAwaiter().GetResult();
+            //}
+            //catch (Exception ex)
+            //{
+            //    //TODO: Ignore for now, but we need an idea of how to deal with this.
+            //}
         }
 
         protected override void Dispose(bool disposing)
@@ -272,14 +305,14 @@ namespace DotJEM.Diagnostic.Writers
             }
         }
 
-        public async Task<ITextWriter> TryOpenWithRetries(string path)
-            => await TryOpenWithRetries(path, 100, CancellationToken.None).ConfigureAwait(false);
+        public Task<ITextWriter> TryOpenWithRetries(string path)
+            => TryOpenWithRetries(path, 100, CancellationToken.None);
 
-        public async Task<ITextWriter> TryOpenWithRetries(string path, int maxTries)
-            => await TryOpenWithRetries(path, maxTries, CancellationToken.None).ConfigureAwait(false);
+        public Task<ITextWriter> TryOpenWithRetries(string path, int maxTries)
+            => TryOpenWithRetries(path, maxTries, CancellationToken.None);
 
-        public async Task<ITextWriter> TryOpenWithRetries(string path, CancellationToken cancellation)
-            => await TryOpenWithRetries(path, 100, cancellation).ConfigureAwait(false);
+        public Task<ITextWriter> TryOpenWithRetries(string path, CancellationToken cancellation)
+            => TryOpenWithRetries(path, 100, cancellation);
 
         public async Task<ITextWriter> TryOpenWithRetries(string path, int maxTries, CancellationToken cancellation)
         {
