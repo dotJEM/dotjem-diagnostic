@@ -1,17 +1,38 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 
 namespace DotJEM.Diagnostic.Writers
 {
+    //https://stackoverflow.com/questions/34792699/async-version-of-_logger-pulse-wait
+    public sealed class AsyncMoniker
+    {
+        private volatile TaskCompletionSource<byte> waiting;
+
+        public bool Pulse()
+        {
+            Debug.WriteLine("AsyncMoniker.Pulse()");
+            TaskCompletionSource<byte> w = waiting;
+            w?.TrySetResult(1);
+            return w != null;
+        }
+
+        public Task Wait()
+        {
+            Debug.WriteLine("AsyncMoniker.Wait()");
+            if (waiting != null)
+                throw new InvalidOperationException("Only one waiter is allowed to exist at a time!");
+            waiting = new TaskCompletionSource<byte>(TaskCreationOptions.RunContinuationsAsynchronously);
+            return waiting.Task;
+        }
+    }
+
     public sealed class AsyncMonitor
     {
         //https://stackoverflow.com/questions/34792699/async-version-of-_logger-pulse-wait
-        public struct Awaitable : INotifyCompletion
+        public class Awaitable : INotifyCompletion
         {
-            // We use a struct to avoid allocations. Note that this means the compiler will copy
-            // the struct around in the calling code when doing 'await', so for your own debugging
-            // sanity make all variables readonly.
             private readonly AsyncMonitor _monitor;
             private readonly int _iteration;
 

@@ -1,10 +1,14 @@
 ﻿using System;
 using System.CodeDom.Compiler;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using DotJEM.AdvParsers;
+using ThreadState = System.Threading.ThreadState;
 
 namespace DotJEM.Diagnostic.Writers
 {
@@ -19,8 +23,7 @@ namespace DotJEM.Diagnostic.Writers
         // Archivers should be composeable.
 
         private readonly object padlock = new object();
-        private readonly AsyncMonitor monitor = new AsyncMonitor();
-
+        private readonly Thread workerThread;
         private bool started = false;
 
         public NonLockingQueuingTraceWriter(string fileName, long maxSize, int maxFiles, bool zip, ITraceEventFormatter formatter = null)
@@ -33,8 +36,7 @@ namespace DotJEM.Diagnostic.Writers
             this.writerManager = writerManager;
             this.archiver = archiver;
             this.formatter = formatter ?? new DefaultTraceEventFormatter();
-
-            
+            this.workerThread = new Thread(SyncWriteLoop);
         }
 
         public Task Write(TraceEvent trace)
@@ -43,33 +45,49 @@ namespace DotJEM.Diagnostic.Writers
                 return Task.CompletedTask;
 
             eventsQueue.Enqueue(trace);
-            monitor.Pulse(false);
-            //lock (padlock)
-            //{
-            //    Monitor.PulseAll(padlock);
-            //}
+            //monitor.Pulse();
+            lock (padlock)Monitor.PulseAll(padlock);
             EnsureWriteLoop();
 
             return Task.CompletedTask;
         }
 
-        public async Task Flush()
+        public Task AsyncFlush()
         {
-            while (eventsQueue.Count > 16)
-                await BufferedWrite().ConfigureAwait(false);
+            //while (eventsQueue.Count > 16)
+            //{
+            //    Debug.WriteLine("AsyncFlush::loop");
+            //    await AsyncBufferedWrite().ConfigureAwait(false);
+            //}
 
-            await BufferedWrite().ConfigureAwait(false);
-            await writerManager.Acquire().FlushAsync().ConfigureAwait(false);
+            //Debug.WriteLine("AsyncFlush::out");
+            //await AsyncBufferedWrite().ConfigureAwait(false);
+            //Debug.WriteLine("AsyncFlush::writerManager.Acquire().FlushAsync().ConfigureAwait(false)");
+            //await writerManager.Acquire().FlushAsync().ConfigureAwait(false);
 
             //if (archiver.RollFile())
             //{
 
             //}
+            return Task.CompletedTask;
         }
 
-        private async Task BufferedWrite()
+        private void Flush()
+        {
+            while (eventsQueue.Count > 16)
+            {
+                BufferedWrite();
+            }
+            BufferedWrite();
+            Sync.Await(writerManager.Acquire().FlushAsync());
+        }
+
+        private void BufferedWrite()
         {
             int count = Math.Min(eventsQueue.Count, 64);
+            if(count < 1)
+                return;
+
             string[] lines = new string[count];
             for (int i = 0; i < count; i++)
                 lines[i] = formatter.Format(eventsQueue.Dequeue());
@@ -78,66 +96,48 @@ namespace DotJEM.Diagnostic.Writers
             //      internal writer as needed underneath without us having to care about it here.
             //      This would also mean we could Acquire the writer, run the write loop and finally flush when the Queue is empty.
             ITextWriter writer = writerManager.Acquire();
-            await writer.WriteLinesAsync(lines).ConfigureAwait(false);
+            Sync.Await(writer.WriteLinesAsync(lines));
         }
 
-        private Thread thread;
         private void EnsureWriteLoop()
         {
+            if (started)
+                return;
+
             lock (padlock)
             {
-                if (started)
-                    return;
                 started = true;
+                workerThread.Start();
             }
-            thread = new Thread(() => WriteLoop().Wait());
-            thread.Start();
         }
 
-        private async Task WriteLoop()
+        private void SyncWriteLoop()
         {
             while (true)
             {
-                await monitor.Wait();
-                await Flush().ConfigureAwait(false);
+                try
+                {
+                    lock (padlock)
+                    {
+                        if (eventsQueue.Count < 1)
+                            Monitor.Wait(padlock);
 
-                if(Disposed)
-                    break;
+                        Flush();
+
+                        if (Disposed)
+                            break;
+                    }
+                }
+                catch (ThreadAbortException)
+                {
+                    Flush();
+                }
+                catch (Exception)
+                {
+                    //TODO: Ignore for now, but we need an idea of how to deal with this.
+                }
             }
-
-            await monitor.Wait();
-            await Flush().ConfigureAwait(false);
-
-            //try
-            //{
-
-            //    lock (padlock)
-            //    //{
-            //    //    while (true)
-            //    //    {
-            //    //        await monitor.Wait();
-
-            //    //        if (eventsQueue.Count < 1)
-            //    //            Monitor.Wait(padlock);
-
-            //    //        try
-            //    //        {
-            //    //            Flush().ConfigureAwait(false).GetAwaiter().GetResult();
-            //    //        }
-            //    //        catch (Exception e)
-            //    //        {
-            //    //        }
-            //    //    }
-            //    //}
-            //}
-            //catch (ThreadAbortException)
-            //{
-            //    //Flush().ConfigureAwait(false).GetAwaiter().GetResult();
-            //}
-            //catch (Exception ex)
-            //{
-            //    //TODO: Ignore for now, but we need an idea of how to deal with this.
-            //}
+            Flush();
         }
 
         protected override void Dispose(bool disposing)
@@ -145,8 +145,8 @@ namespace DotJEM.Diagnostic.Writers
             if (!disposing)
                 return;
 
-            thread.Abort();
-            thread.Join();
+            workerThread.Abort();
+            workerThread.Join();
         }
     }
 
@@ -219,8 +219,16 @@ namespace DotJEM.Diagnostic.Writers
             await writer.WriteLineAsync(value).ConfigureAwait(false);
         }
 
+        public async Task WriteAsync(string value)
+        {
+            Size += writer.Encoding.GetByteCount(value);
+            await writer.WriteAsync(value).ConfigureAwait(false);
+        }
+
         public async Task WriteLinesAsync(params string[] values)
         {
+            if (values.Length < 1)
+                return;
             await WriteLineAsync(string.Join(writer.NewLine, values)).ConfigureAwait(false);
         }
 
@@ -328,6 +336,107 @@ namespace DotJEM.Diagnostic.Writers
                     await Task.Delay(i * 10, cancellation).ConfigureAwait(false);
             }
             return null;
+        }
+    }
+
+    /// <summary>
+    /// NOTE: This is meant for async -> sync integration, it's recomended to elevtate async patterns all the way, but
+    ///       this is not always possible during refactoring of old code bases. This is also why these are not added as convinient extension methods.
+    /// </summary>
+    public static class Sync
+    {
+        public static T Await<T>(Task<T> task)
+        {
+            using (new NoSynchronizationContext())
+            {
+                try
+                {
+                    return task.Result;
+                    //return Task.Run(() => task).ConfigureAwait(false).GetAwaiter().GetResult();
+                }
+                catch (AggregateException ex)
+                {
+                    ExceptionDispatchInfo.Capture(ex.Flatten().InnerExceptions.First()).Throw();
+                    // ReSharper disable HeuristicUnreachableCode
+                    // The compiler requires either a throw or return, so even though this is unreachable, the compiler won't build unless it is there.
+                    throw;
+                    // ReSharper restore HeuristicUnreachableCode
+                }
+            }
+        }
+
+        public static T[] Await<T>(IEnumerable<Task<T>> tasks)
+        {
+            using (new NoSynchronizationContext())
+            {
+                try
+                {
+                    return Task.WhenAll(tasks).Result;
+                    //return Task.Run(() => Task.WhenAll(tasks)).ConfigureAwait(false).GetAwaiter().GetResult();
+                }
+                catch (AggregateException ex)
+                {
+                    ExceptionDispatchInfo.Capture(ex.Flatten().InnerExceptions.First()).Throw();
+                    // ReSharper disable HeuristicUnreachableCode
+                    // The compiler requires either a throw or return, so even though this is unreachable, the compiler won't build unless it is there.
+                    throw;
+                    // ReSharper restore HeuristicUnreachableCode
+                }
+            }
+        }
+
+        public static T[] Await<T>(params Task<T>[] tasks) => Await((IEnumerable<Task<T>>)tasks);
+
+        public static void Await(Task task)
+        {
+            using (new NoSynchronizationContext())
+            {
+                try
+                {
+                    task.Wait();
+                    //Task.Run(() => task).ConfigureAwait(false).GetAwaiter().GetResult();
+                }
+                catch (AggregateException ex)
+                {
+                    ExceptionDispatchInfo.Capture(ex.Flatten().InnerExceptions.First()).Throw();
+                    // ReSharper disable HeuristicUnreachableCode
+                    // The compiler requires either a throw or return, so even though this is unreachable, the compiler won't build unless it is there.
+                    throw;
+                    // ReSharper restore HeuristicUnreachableCode
+                }
+            }
+        }
+
+        public static void Await(IEnumerable<Task> tasks)
+        {
+            try
+            {
+                Task.WhenAll(tasks).Wait();
+                //Task.Run(() => Task.WhenAll(tasks)).ConfigureAwait(false).GetAwaiter().GetResult();
+            }
+            catch (AggregateException ex)
+            {
+                ExceptionDispatchInfo.Capture(ex.Flatten().InnerExceptions.First()).Throw();
+                // ReSharper disable HeuristicUnreachableCode
+                // The compiler requires either a throw or return, so even though this is unreachable, the compiler won't build unless it is there.
+                throw;
+                // ReSharper restore HeuristicUnreachableCode
+            }
+        }
+
+        public static void Await(params Task[] tasks) => Await((IEnumerable<Task>)tasks);
+
+        private class NoSynchronizationContext : IDisposable
+        {
+            private readonly SynchronizationContext context;
+
+            public NoSynchronizationContext()
+            {
+                context = SynchronizationContext.Current;
+                SynchronizationContext.SetSynchronizationContext(null);
+            }
+            public void Dispose() =>
+                SynchronizationContext.SetSynchronizationContext(context);
         }
     }
 }
