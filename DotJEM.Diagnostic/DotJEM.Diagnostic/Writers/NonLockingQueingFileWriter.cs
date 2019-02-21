@@ -62,8 +62,8 @@ namespace DotJEM.Diagnostic.Writers
 
             //Debug.WriteLine("AsyncFlush::out");
             //await AsyncBufferedWrite().ConfigureAwait(false);
-            //Debug.WriteLine("AsyncFlush::writerManager.Acquire().FlushAsync().ConfigureAwait(false)");
-            //await writerManager.Acquire().FlushAsync().ConfigureAwait(false);
+            //Debug.WriteLine("AsyncFlush::writerManager.Acquire().Flush().ConfigureAwait(false)");
+            //await writerManager.Acquire().Flush().ConfigureAwait(false);
 
             //if (archiver.RollFile())
             //{
@@ -79,7 +79,7 @@ namespace DotJEM.Diagnostic.Writers
                 BufferedWrite();
             }
             BufferedWrite();
-            Sync.Await(writerManager.Acquire().FlushAsync());
+            writerManager.Acquire().Flush();
         }
 
         private void BufferedWrite()
@@ -96,7 +96,7 @@ namespace DotJEM.Diagnostic.Writers
             //      internal writer as needed underneath without us having to care about it here.
             //      This would also mean we could Acquire the writer, run the write loop and finally flush when the Queue is empty.
             ITextWriter writer = writerManager.Acquire();
-            Sync.Await(writer.WriteLinesAsync(lines));
+            writer.WriteLines(lines);
         }
 
         private void EnsureWriteLoop()
@@ -189,9 +189,9 @@ namespace DotJEM.Diagnostic.Writers
     {
         long Size { get; }
         void Close();
-        Task WriteLineAsync(string value);
-        Task WriteLinesAsync(params string[] values);
-        Task FlushAsync();
+        void WriteLine(string value);
+        void WriteLines(params string[] values);
+        void Flush();
     }
 
     public class TextWriterProxy : ITextWriter
@@ -208,7 +208,7 @@ namespace DotJEM.Diagnostic.Writers
             newLineByteCount = writer.Encoding.GetByteCount(writer.NewLine);
         }
 
-        public async Task WriteLineAsync(string value)
+        public void WriteLine(string value)
         {
             //Note: This is significantly faster than having to refresh the file each time.
             //      As an added bonus, we don't have to flush explicitly each time to get the
@@ -216,23 +216,23 @@ namespace DotJEM.Diagnostic.Writers
             //      explicitly flushing in other scenarios to ensure that data is written to the disk though.
      
             Size += writer.Encoding.GetByteCount(value) + newLineByteCount;
-            await writer.WriteLineAsync(value).ConfigureAwait(false);
+            writer.WriteLine(value);
         }
 
-        public async Task WriteAsync(string value)
+        public void Write(string value)
         {
             Size += writer.Encoding.GetByteCount(value);
-            await writer.WriteAsync(value).ConfigureAwait(false);
+            writer.Write(value);
         }
 
-        public async Task WriteLinesAsync(params string[] values)
+        public void WriteLines(params string[] values)
         {
             if (values.Length < 1)
                 return;
-            await WriteLineAsync(string.Join(writer.NewLine, values)).ConfigureAwait(false);
+            WriteLine(string.Join(writer.NewLine, values));
         }
 
-        public async Task FlushAsync() => await writer.FlushAsync().ConfigureAwait(false);
+        public void Flush() => writer.Flush();
         public void Close() => writer.Close();
     }
 

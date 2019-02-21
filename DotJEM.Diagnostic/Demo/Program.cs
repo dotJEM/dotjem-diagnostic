@@ -40,7 +40,10 @@ namespace Demo
 
             Task[] tasks = Enumerable.Range(0, 5).Select(async i => await SplitTask(3, i.ToString()).ConfigureAwait(false)).ToArray();
             Task.WaitAll(tasks);
+            collector.Collect(new TraceEvent("DONE", DateTime.Now, "", new CustomData[0], new object())).Wait();
             Console.WriteLine("DONE");
+
+
             Console.ReadKey();
         }
 
