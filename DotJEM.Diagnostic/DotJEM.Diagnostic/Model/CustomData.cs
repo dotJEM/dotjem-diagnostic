@@ -1,4 +1,4 @@
-﻿namespace DotJEM.Diagnostic
+﻿namespace DotJEM.Diagnostic.Model
 {
     public class CustomData
     {

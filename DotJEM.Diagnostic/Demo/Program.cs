@@ -10,6 +10,7 @@ using DotJEM.Diagnostic;
 using DotJEM.Diagnostic.Collectors;
 using DotJEM.Diagnostic.Correlation;
 using DotJEM.Diagnostic.DataProviders;
+using DotJEM.Diagnostic.Model;
 using DotJEM.Diagnostic.Writers;
 
 namespace Demo
@@ -27,11 +28,13 @@ namespace Demo
 
         static void Main(string[] args)
         {
+            ITraceWriter writer;
+
             Directory.CreateDirectory("logs");
             var collector = new CompositeTraceEventCollector(
                 new TraceEventCollector(new ConsoleWriter()),
                 new TraceEventCollector(new ConsoleWriter())
-                     , new TraceEventCollector(new NonLockingQueuingTraceWriter("logs\\trace.log", 12000, 5, true, new DefaultTraceEventFormatter()))
+                     ,  new TraceEventCollector(writer = new NonLockingQueuingTraceWriter("logs\\trace.log", 12000, 5, true, new DefaultTraceEventFormatter()))
                 );
 
             _logger = new HighPrecisionLoggerBuilder(collector)
@@ -45,6 +48,7 @@ namespace Demo
 
 
             Console.ReadKey();
+            writer.Dispose();
         }
 
         static async Task SplitTask(int depth, string msg)
@@ -54,7 +58,7 @@ namespace Demo
             {
                 using (new CorrelationScope())
                 {
-                    using (_logger.Track("Foobar", new {Name = msg}))
+                    using (IPerformanceTracker scope = _logger.Track("Foobar", new {Name = msg}))
                     {
                         await Task.WhenAll(Enumerable.Range(0, 10)
                                 .Select(async i => await SplitTask(depth - 1, $"{msg}.{i}").ConfigureAwait(false)))

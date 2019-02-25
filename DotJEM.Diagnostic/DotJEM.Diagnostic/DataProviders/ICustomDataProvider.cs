@@ -9,12 +9,14 @@ namespace DotJEM.Diagnostic.DataProviders
         object Data { get; }
         string Format { get; }
     }
+
     public class ThreadIdProvider : ICustomDataProvider
     {
         public object Data => Thread.CurrentThread.ManagedThreadId;
         public string Format => "D";
 
     }
+
     public class ProcessIdProvider : ICustomDataProvider
     {
         public string Format => "D";

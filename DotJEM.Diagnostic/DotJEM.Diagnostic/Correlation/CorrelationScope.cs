@@ -1,4 +1,5 @@
 ﻿using System.Threading;
+using DotJEM.Diagnostic.Common;
 
 namespace DotJEM.Diagnostic.Correlation
 {

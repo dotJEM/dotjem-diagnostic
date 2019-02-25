@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using DotJEM.Diagnostic.Model;
 using DotJEM.Diagnostic.Writers;
 
 namespace DotJEM.Diagnostic.Collectors
