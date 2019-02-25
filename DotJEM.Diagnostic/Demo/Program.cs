@@ -34,7 +34,7 @@ namespace Demo
             var collector = new CompositeTraceEventCollector(
                 new TraceEventCollector(new ConsoleWriter()),
                 new TraceEventCollector(new ConsoleWriter())
-                     ,  new TraceEventCollector(writer = new NonLockingQueuingTraceWriter("logs\\trace.log", 12000, 5, true, new DefaultTraceEventFormatter()))
+                     ,  new TraceEventCollector(writer = new QueuingTraceWriter("logs\\trace.log", 12000, 5, true, new DefaultTraceEventFormatter()))
                 );
 
             _logger = new HighPrecisionLoggerBuilder(collector)

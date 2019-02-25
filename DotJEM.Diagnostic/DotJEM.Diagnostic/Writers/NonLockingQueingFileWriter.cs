@@ -14,7 +14,26 @@ using ThreadState = System.Threading.ThreadState;
 
 namespace DotJEM.Diagnostic.Writers
 {
-    public class NonLockingQueuingTraceWriter : Disposable, ITraceWriter
+    public interface IThreadFactory
+    {
+        Thread Create(ThreadStart loop);
+    }
+
+    public class DefaultThreadFactory : IThreadFactory
+    {
+        public Thread Create(ThreadStart loop) => new Thread(loop) { IsBackground = true };
+    }
+
+    public class NonBackgroundThreadThreadFactory : IThreadFactory
+    {
+        public Thread Create(ThreadStart loop) => new Thread(loop) { IsBackground = false };
+    }
+
+    /// <summary>
+    /// Provides a <see cref="ITraceWriter"/> that doesn't block while waiting for the IO layer when writing out trace events.
+    /// Instead it Queues each event on a Queue and pulses a writer thread.
+    /// </summary>
+    public class QueuingTraceWriter : Disposable, ITraceWriter
     {
         private readonly Queue<TraceEvent> eventsQueue = new Queue<TraceEvent>();
         private readonly IWriterManger writerManager;
@@ -28,17 +47,18 @@ namespace DotJEM.Diagnostic.Writers
         private readonly Thread workerThread;
         private bool started = false;
 
-        public NonLockingQueuingTraceWriter(string fileName, long maxSize, int maxFiles, bool zip, ITraceEventFormatter formatter = null)
-        : this(new WriterManger(fileName, maxSize), formatter, (zip ? (ILogArchiver)new ZippingLogArchiver(maxFiles) : new DeletingLogArchiver(maxFiles)))
+        public QueuingTraceWriter(string fileName, long maxSize, int maxFiles, bool zip, ITraceEventFormatter formatter = null)
+        : this(new WriterManger(fileName, maxSize), formatter, (zip ? (ILogArchiver)new ZippingLogArchiver(maxFiles) : new DeletingLogArchiver(maxFiles)), new DefaultThreadFactory())
         {
         }
 
-        public NonLockingQueuingTraceWriter(IWriterManger writerManager, ITraceEventFormatter formatter = null, ILogArchiver archiver = null)
+        public QueuingTraceWriter(IWriterManger writerManager, ITraceEventFormatter formatter = null, ILogArchiver archiver = null, IThreadFactory factory = null)
         {
             this.writerManager = writerManager;
             this.archiver = archiver;
             this.formatter = formatter ?? new DefaultTraceEventFormatter();
-            this.workerThread = new Thread(SyncWriteLoop);
+
+            this.workerThread = (factory ?? new DefaultThreadFactory()).Create(SyncWriteLoop);
         }
 
         public Task Write(TraceEvent trace)
