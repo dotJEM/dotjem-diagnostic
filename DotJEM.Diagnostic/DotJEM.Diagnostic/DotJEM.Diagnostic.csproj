@@ -8,6 +8,7 @@
     <Authors>DotJEM</Authors>
     <Company>N/A</Company>
     <Copyright>Copyright © DotJEM 2019</Copyright>
+    <PackageVersion></PackageVersion>
   </PropertyGroup>
 
   <ItemGroup>
