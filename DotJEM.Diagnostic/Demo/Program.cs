@@ -12,6 +12,7 @@ using DotJEM.Diagnostic.Correlation;
 using DotJEM.Diagnostic.DataProviders;
 using DotJEM.Diagnostic.Model;
 using DotJEM.Diagnostic.Writers;
+using Newtonsoft.Json.Linq;
 
 namespace Demo
 {
@@ -43,7 +44,7 @@ namespace Demo
 
             Task[] tasks = Enumerable.Range(0, 5).Select(async i => await SplitTask(10, i.ToString()).ConfigureAwait(false)).ToArray();
             Task.WaitAll(tasks);
-            collector.Collect(new TraceEvent("DONE", DateTime.Now, "", new CustomData[0], new object())).Wait();
+            collector.Collect(new TraceEvent("DONE", DateTime.Now, "", new CustomData[0], new JObject())).Wait();
             Console.WriteLine("DONE");
 
 

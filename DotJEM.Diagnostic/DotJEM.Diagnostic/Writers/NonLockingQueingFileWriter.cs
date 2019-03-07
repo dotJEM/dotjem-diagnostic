@@ -43,6 +43,8 @@ namespace DotJEM.Diagnostic.Writers
         // Should be part of the Archiver service, which instead should be a DeletingArchiver or ZippingArchiver,
         // Archivers should be composeable.
 
+        // Have a look at: TODO: https://docs.microsoft.com/en-us/dotnet/api/system.threading.tasks.dataflow.itargetblock-1?view=netcore-2.2
+
         private readonly object padlock = new object();
         private readonly Thread workerThread;
         private readonly Queue<TaskCompletionSource<byte>> awaitingFlush = new Queue<TaskCompletionSource<byte>>();

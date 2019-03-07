@@ -6,6 +6,7 @@ using DotJEM.Diagnostic.Common;
 using DotJEM.Diagnostic.Correlation;
 using DotJEM.Diagnostic.DataProviders;
 using DotJEM.Diagnostic.Model;
+using Newtonsoft.Json.Linq;
 
 namespace DotJEM.Diagnostic
 {
@@ -34,7 +35,8 @@ namespace DotJEM.Diagnostic
         //IPerformanceTracker Track(string type, string json);
         //IPerformanceTracker Track(string type, JObject json);
 
-        Task LogAsync(string type, object customData = null);
+        Task LogAsync(string type, object customData);
+        Task LogAsync(string type, JToken customData = null);
     }
 
     /// <summary>
@@ -94,7 +96,10 @@ namespace DotJEM.Diagnostic
             this.collector = collector;
         }
 
-        public async Task LogAsync(string type, object customData = null)
+        public Task LogAsync(string type, object customData)
+            => LogAsync(type, customData != null ? JToken.FromObject(customData) : null);
+
+        public async Task LogAsync(string type, JToken customData = null)
         {
             TraceEvent evt = new TraceEvent(type, HighResolutionTime.Now, CorrelationScope.Identifier, providers.Select(p => new CustomData(p.Key, p.Value.Data, p.Value.Format)), customData);
             await collector.Collect(evt).ConfigureAwait(false);

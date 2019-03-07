@@ -1,11 +1,13 @@
 ﻿using System;
 using DotJEM.Diagnostic.Common;
+using Newtonsoft.Json.Linq;
 
 namespace DotJEM.Diagnostic
 {
     public interface IPerformanceTracker : IDisposable
     {
-        void Commit(object customData = null);
+        void Commit(object customData);
+        void Commit(JToken customData = null);
     }
     public class PerformanceTracker : Disposable, IPerformanceTracker
     {
@@ -19,7 +21,12 @@ namespace DotJEM.Diagnostic
             this.logger = logger;
         }
 
-        public void Commit(object customData = null)
+        public void Commit(object customData)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Commit(JToken customData = null)
         {
             if (!committed)
             {
