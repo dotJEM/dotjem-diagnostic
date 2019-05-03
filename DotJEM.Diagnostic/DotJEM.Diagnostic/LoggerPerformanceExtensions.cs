@@ -14,7 +14,6 @@ namespace DotJEM.Diagnostic
         public static IPerformanceTracker Track(this ILogger self, string type, object customData)
             => self.Track(type, TransformObject(customData));
 
-
         public static void TrackAction(this ILogger self, Action action, JToken customData = null)
             => self.TrackAction(action, action.Method.Name, customData);
 

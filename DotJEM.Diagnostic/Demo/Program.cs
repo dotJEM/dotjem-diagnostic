@@ -33,7 +33,6 @@ namespace Demo
 
             Directory.CreateDirectory("logs");
             var collector = new CompositeTraceEventCollector(
-                new TraceEventCollector(new ConsoleWriter()),
                 new TraceEventCollector(new ConsoleWriter())
                      ,  new TraceEventCollector(writer = new QueuingTraceWriter("logs\\trace.log", 12000, 5, true, new DefaultTraceEventFormatter()))
                 );

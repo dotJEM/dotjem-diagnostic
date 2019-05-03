@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Threading.Tasks;
+using DotJEM.Diagnostic.Common;
+using DotJEM.Diagnostic.Model;
 
 namespace DotJEM.Diagnostic.Writers
 {

@@ -6,9 +6,11 @@ using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using DotJEM.Diagnostic.Collectors;
+using DotJEM.Diagnostic.Common;
 using DotJEM.Diagnostic.Correlation;
 using DotJEM.Diagnostic.DataProviders;
 using DotJEM.Diagnostic.Model;
+using Newtonsoft.Json.Linq;
 
 namespace DotJEM.Diagnostic
 {
@@ -71,12 +73,15 @@ namespace DotJEM.Diagnostic
 
         public async Task LogAsync(string type, object customData = null)
         {
+            if(!(customData is JToken token))
+                token = JToken.FromObject(customData);
+
             TraceEvent evt = new TraceEvent(
                 type, 
                 HighResolutionTime.Now,
                 CorrelationScope.Identifier, 
                 providers.Select(p => p.Value.Generate(p.Key)),
-                customData);
+                token);
             await collector.Collect(evt).ConfigureAwait(false);
         }
     }
@@ -109,45 +114,4 @@ namespace DotJEM.Diagnostic
         Task LogAsync(string type, object customData = null);
     }
 
-    public static class PerformanceLoggerExtensions
-    {
-        public static IPerformanceTracker Track(this ILogger self, string type, object customData = null)
-        {
-            self.LogAsync(">>> " + type, customData);
-            return new PerformanceTracker(self, type);
-        }
-    }
-
-    public interface IPerformanceTracker : IDisposable
-    {
-        void Commit(object customData = null);
-    }
-
-    public class PerformanceTracker : Disposable, IPerformanceTracker
-    {
-        private readonly string type;
-        private readonly ILogger logger;
-        private volatile bool committed = false;
-
-        public PerformanceTracker(ILogger logger, string type)
-        {
-            this.type = type;
-            this.logger = logger;
-        }
-
-        public void Commit(object customData = null)
-        {
-            if (!committed)
-            {
-                logger.LogAsync("<<< " + type, customData);
-            }
-            committed = true;
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            Commit();
-            base.Dispose(disposing);
-        }
-    }
 }
