@@ -8,6 +8,7 @@ using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using DotJEM.AdvParsers;
+using DotJEM.Diagnostic.Model;
 using ThreadState = System.Threading.ThreadState;
 
 namespace DotJEM.Diagnostic.Writers

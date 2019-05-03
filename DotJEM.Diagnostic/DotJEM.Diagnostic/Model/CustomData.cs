@@ -1,20 +1,29 @@
-﻿namespace DotJEM.Diagnostic
+﻿using System;
+
+namespace DotJEM.Diagnostic.Model
 {
     public class CustomData
     {
-        private readonly string format;
+        private readonly ICustomDataFormatter formatter;
 
-        public string Name { get; }
         public object Value { get; }
 
-        public CustomData(string name, object value, string format)
+        public CustomData(object value, ICustomDataFormatter formatter = null)
         {
-            //TODO: Formatter instead!
-            this.format = string.IsNullOrWhiteSpace(format) ? "{0}" : $"{{0:{format}}}";
-            Name = name;
+            this.formatter = formatter ?? new DefaultCustomDataFormatter();
             Value = value;
         }
 
-        public override string ToString() => string.Format(format, Value);
+        public override string ToString() => formatter.Format(this);
+    }
+
+    public interface ICustomDataFormatter
+    {
+        string Format(CustomData customData);
+    }
+
+    public class DefaultCustomDataFormatter : ICustomDataFormatter
+    {
+        public string Format(CustomData customData) => customData.Value?.ToString();
     }
 }

@@ -1,37 +1,37 @@
 ﻿using System.Diagnostics;
 using System.Security.Claims;
 using System.Threading;
+using DotJEM.Diagnostic.Model;
 
 namespace DotJEM.Diagnostic.DataProviders
 {
     public interface ICustomDataProvider
     {
-        object Data { get; }
-        string Format { get; }
+        CustomData Generate(string key);
     }
-    public class ThreadIdProvider : ICustomDataProvider
-    {
-        public object Data => Thread.CurrentThread.ManagedThreadId;
-        public string Format => "D";
 
-    }
-    public class ProcessIdProvider : ICustomDataProvider
+    public class ThreadIdProvider : ICustomDataProvider, ICustomDataFormatter
     {
-        public string Format => "D";
-        public object Data => Process.GetCurrentProcess().Id;
+        public CustomData Generate(string key) => new CustomData(Thread.CurrentThread.ManagedThreadId, this);
+
+        public string Format(CustomData customData) => $"ThreadId:{customData.Value:D}";
+    }
+    public class ProcessIdProvider : ICustomDataProvider, ICustomDataFormatter
+    {
+        public CustomData Generate(string key) => new CustomData(Process.GetCurrentProcess().Id, this);
+
+        public string Format(CustomData customData) => $"ProcessId:{customData.Value:D}";
     }
 
     public class IdentityProvider : ICustomDataProvider
     {
-        public string Format => "";
-        public object Data
+        private string GetIdentityString()
         {
-            get
-            {
-                string str = ClaimsPrincipal.Current.Identity.Name;
-                return !string.IsNullOrEmpty(str) ? str : "NO IDENTITY";
-            }
+            string str = ClaimsPrincipal.Current.Identity.Name;
+            return !string.IsNullOrEmpty(str) ? str : "NO IDENTITY";
         }
+
+        public CustomData Generate(string key) => new CustomData(GetIdentityString());
     }
 
 }

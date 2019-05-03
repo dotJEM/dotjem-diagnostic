@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using DotJEM.Diagnostic.Collectors;
 using DotJEM.Diagnostic.Correlation;
 using DotJEM.Diagnostic.DataProviders;
+using DotJEM.Diagnostic.Model;
 
 namespace DotJEM.Diagnostic
 {
@@ -70,7 +71,12 @@ namespace DotJEM.Diagnostic
 
         public async Task LogAsync(string type, object customData = null)
         {
-            TraceEvent evt = new TraceEvent(type, HighResolutionTime.Now, CorrelationScope.Identifier, providers.Select(p => new CustomData(p.Key, p.Value.Data, p.Value.Format)), customData);
+            TraceEvent evt = new TraceEvent(
+                type, 
+                HighResolutionTime.Now,
+                CorrelationScope.Identifier, 
+                providers.Select(p => p.Value.Generate(p.Key)),
+                customData);
             await collector.Collect(evt).ConfigureAwait(false);
         }
     }

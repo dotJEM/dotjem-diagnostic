@@ -10,16 +10,17 @@ using DotJEM.Diagnostic;
 using DotJEM.Diagnostic.Collectors;
 using DotJEM.Diagnostic.Correlation;
 using DotJEM.Diagnostic.DataProviders;
+using DotJEM.Diagnostic.Model;
 using DotJEM.Diagnostic.Writers;
 
 namespace Demo
 {
     class Program
     {
-        private class RandomProvider : ICustomDataProvider
+        private class RandomProvider : ICustomDataProvider, ICustomDataFormatter
         {
-            public object Data => rnd.Next();
-            public string Format => "D9";
+            public CustomData Generate(string key) => new CustomData(rnd.Next(), this);
+            public string Format(CustomData customData) => $"{customData.Value:D9}";
         }
         private static Random rnd = new Random();
         protected internal const int ITTERATIONS = 1000000 /4;
