@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace DotJEM.Diagnostic.Model
 {
@@ -10,9 +12,11 @@ namespace DotJEM.Diagnostic.Model
         public DateTime Time { get; }
         public string Correlation { get; }
         public CustomData[] CustomData { get; }
-        public object CustomObject { get; }
+        public JToken CustomObject { get; }
 
-        public TraceEvent(string type, DateTime time, string correlation, IEnumerable<CustomData> customData, object customObject)
+        private readonly FormattableString toStringImpl;
+
+        public TraceEvent(string type, DateTime time, string correlation, IEnumerable<CustomData> customData, JToken customObject)
         {
             Type = type;
             Time = time;
@@ -20,7 +24,32 @@ namespace DotJEM.Diagnostic.Model
             CustomData = customData.ToArray();
             CustomObject = customObject;
 
+            toStringImpl = CustomObject != null
+                ? (FormattableString)$"{Time:yyyy-MM-ddTHH:mm:ss.fffffff}\t{Correlation}\t{Type}\t{string.Join("\t", CustomData.Select(data => data.ToString()))}\t{CustomObject?.ToString(Formatting.None)}"
+                : $"{Time:yyyy-MM-ddTHH:mm:ss.fffffff}\t{Correlation}\t{Type}\t{string.Join("\t", CustomData.Select(data => data.ToString()))}";
+            toStringImpl = SelectToStringImplementation(CustomData, CustomObject);
         }
+
+        private FormattableString SelectToStringImplementation(CustomData[] customData, JToken customObject)
+        {
+            switch (customData.Length)
+            {
+                case int n when (n == 0 && customObject == null):
+                    return $"{Time:yyyy-MM-ddTHH:mm:ss.fffffff}\t{Correlation}\t{Type}";
+                case int n when (n == 0):
+                    return $"{Time:yyyy-MM-ddTHH:mm:ss.fffffff}\t{Correlation}\t{Type}\t{CustomObject?.ToString(Formatting.None)}";
+                case int n when (n == 1 && customObject == null):
+                    return $"{Time:yyyy-MM-ddTHH:mm:ss.fffffff}\t{Correlation}\t{Type}\t{CustomData[0]}";
+                case int n when (n == 1):
+                    return $"{Time:yyyy-MM-ddTHH:mm:ss.fffffff}\t{Correlation}\t{Type}\t{CustomData[0]}\t{CustomObject?.ToString(Formatting.None)}";
+                case int _ when (customObject == null):
+                    return $"{Time:yyyy-MM-ddTHH:mm:ss.fffffff}\t{Correlation}\t{Type}\t{string.Join("\t", CustomData.Select(data => data.ToString()))}";
+                default:
+                    return $"{Time:yyyy-MM-ddTHH:mm:ss.fffffff}\t{Correlation}\t{Type}\t{string.Join("\t", CustomData.Select(data => data.ToString()))}\t{CustomObject?.ToString(Formatting.None)}";
+            }
+        }
+
+
         /*
          * Log as:
          *
@@ -38,6 +67,9 @@ namespace DotJEM.Diagnostic.Model
          *
          *
          */
-        public override string ToString() => $"{Time:yyyy-MM-ddTHH:mm:ss.fffffff}\t{Correlation}\t{Type}\t{string.Join("\t", CustomData.Select(data => data.ToString()))}\t{CustomObject}";
+        public override string ToString()
+            => toStringImpl.ToString();
+
+
     }
 }

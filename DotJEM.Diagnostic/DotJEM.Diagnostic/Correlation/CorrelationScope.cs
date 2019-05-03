@@ -1,4 +1,6 @@
-﻿using System.Threading;
+﻿using System;
+using System.Threading;
+using DotJEM.Diagnostic.Common;
 
 namespace DotJEM.Diagnostic.Correlation
 {
@@ -14,14 +16,22 @@ namespace DotJEM.Diagnostic.Correlation
         public CorrelationScope Parent { get; }
 
         public CorrelationScope()
+            :this(IdProvider.Default.Next)
+        {
+        }
+
+        public CorrelationScope(Guid source)
+            :this(IdProvider.Default.Compute(source))
+        {
+        }
+
+        private CorrelationScope(string id)
         {
             Parent = Current;
-
-            Id = IdProvider.Default.Next;
+            Id = id;
             //CorrelationId = Parent?.CorrelationId ?? IdProvider.Default.Next;
             //Note: This saves us some time and shouldn't really cause any correlation issues, if it does we can reinstate a unique ID for the Root.
             CorrelationId = Parent?.CorrelationId ?? Id;
-
             current.Value = this;
         }
 

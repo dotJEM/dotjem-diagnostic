@@ -3,17 +3,37 @@ using System.CodeDom.Compiler;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using DotJEM.AdvParsers;
+using DotJEM.Diagnostic.Common;
 using DotJEM.Diagnostic.Model;
-using ThreadState = System.Threading.ThreadState;
 
 namespace DotJEM.Diagnostic.Writers
 {
-    public class NonLockingQueuingTraceWriter : Disposable, ITraceWriter
+    public interface IThreadFactory
+    {
+        Thread Create(ThreadStart loop);
+    }
+
+    public class DefaultThreadFactory : IThreadFactory
+    {
+        public Thread Create(ThreadStart loop) => new Thread(loop) { IsBackground = true };
+    }
+
+    public class NonBackgroundThreadThreadFactory : IThreadFactory
+    {
+        public Thread Create(ThreadStart loop) => new Thread(loop) { IsBackground = false };
+    }
+
+    /// <summary>
+    /// Provides a <see cref="ITraceWriter"/> that doesn't block while waiting for the IO layer when writing out trace events.
+    /// Instead it Queues each event on a Queue and pulses a writer thread.
+    /// </summary>
+    public class QueuingTraceWriter : Disposable, ITraceWriter
     {
         private readonly Queue<TraceEvent> eventsQueue = new Queue<TraceEvent>();
         private readonly IWriterManger writerManager;
@@ -23,81 +43,79 @@ namespace DotJEM.Diagnostic.Writers
         // Should be part of the Archiver service, which instead should be a DeletingArchiver or ZippingArchiver,
         // Archivers should be composeable.
 
+        // Have a look at: TODO: https://docs.microsoft.com/en-us/dotnet/api/system.threading.tasks.dataflow.itargetblock-1?view=netcore-2.2
+
         private readonly object padlock = new object();
         private readonly Thread workerThread;
+        private readonly Queue<TaskCompletionSource<byte>> awaitingFlush = new Queue<TaskCompletionSource<byte>>();
         private bool started = false;
 
-        public NonLockingQueuingTraceWriter(string fileName, long maxSize, int maxFiles, bool zip, ITraceEventFormatter formatter = null)
-        : this(new WriterManger(fileName, maxSize), formatter, (zip ? (ILogArchiver)new ZippingLogArchiver(maxFiles) : new DeletingLogArchiver(maxFiles)))
+        public QueuingTraceWriter(string fileName, long maxSize, int maxFiles, bool zip, ITraceEventFormatter formatter = null)
+            : this(new WriterManger(fileName, maxSize), formatter, (zip ? (ILogArchiver)new ZippingLogArchiver(maxFiles, maxSize * 10) : new DeletingLogArchiver(maxFiles)), new DefaultThreadFactory())
         {
         }
 
-        public NonLockingQueuingTraceWriter(IWriterManger writerManager, ITraceEventFormatter formatter = null, ILogArchiver archiver = null)
+        public QueuingTraceWriter(IWriterManger writerManager, ITraceEventFormatter formatter = null, ILogArchiver archiver = null, IThreadFactory factory = null)
         {
             this.writerManager = writerManager;
             this.archiver = archiver;
             this.formatter = formatter ?? new DefaultTraceEventFormatter();
-            this.workerThread = new Thread(SyncWriteLoop);
+            this.workerThread = (factory ?? new DefaultThreadFactory()).Create(SyncWriteLoop);
         }
 
         public Task Write(TraceEvent trace)
         {
-            if(Disposed)
+            if (Disposed)
                 return Task.CompletedTask;
 
             eventsQueue.Enqueue(trace);
-            //monitor.Pulse();
-            lock (padlock)Monitor.PulseAll(padlock);
             EnsureWriteLoop();
-
+            Pulse();
             return Task.CompletedTask;
+        }
+
+        private void Pulse()
+        {
+            lock (padlock) Monitor.PulseAll(padlock);
         }
 
         public Task AsyncFlush()
         {
-            //while (eventsQueue.Count > 16)
-            //{
-            //    Debug.WriteLine("AsyncFlush::loop");
-            //    await AsyncBufferedWrite().ConfigureAwait(false);
-            //}
+            TaskCompletionSource<byte> wait = new TaskCompletionSource<byte>(TaskCreationOptions.RunContinuationsAsynchronously);
+            awaitingFlush.Enqueue(wait);
 
-            //Debug.WriteLine("AsyncFlush::out");
-            //await AsyncBufferedWrite().ConfigureAwait(false);
-            //Debug.WriteLine("AsyncFlush::writerManager.Acquire().Flush().ConfigureAwait(false)");
-            //await writerManager.Acquire().Flush().ConfigureAwait(false);
+            lock (padlock) Monitor.PulseAll(padlock);
 
-            //if (archiver.RollFile())
-            //{
-
-            //}
-            return Task.CompletedTask;
+            return wait.Task;
         }
 
         private void Flush()
         {
+            bool replaced = false;
             while (eventsQueue.Count > 16)
             {
-                BufferedWrite();
+                replaced |= BufferedWrite();
             }
-            BufferedWrite();
-            writerManager.Acquire().Flush();
+            replaced |= BufferedWrite();
+            replaced |= writerManager.Flush();
+
+            if (replaced) archiver.Archive(writerManager);
+
+            while (awaitingFlush.Count > 0)
+                awaitingFlush.Dequeue().TrySetResult(1);
         }
 
-        private void BufferedWrite()
+        private bool BufferedWrite()
         {
             int count = Math.Min(eventsQueue.Count, 64);
-            if(count < 1)
-                return;
+            if (count < 1)
+                return false;
 
             string[] lines = new string[count];
             for (int i = 0; i < count; i++)
                 lines[i] = formatter.Format(eventsQueue.Dequeue());
 
-            //TODO: This looks a bit silly, from this perspective it would be nice if the ITextWriter would just replace it's
-            //      internal writer as needed underneath without us having to care about it here.
-            //      This would also mean we could Acquire the writer, run the write loop and finally flush when the Queue is empty.
-            ITextWriter writer = writerManager.Acquire();
-            writer.WriteLines(lines);
+            return writerManager.WriteLines(lines);
         }
 
         private void EnsureWriteLoop()
@@ -153,98 +171,165 @@ namespace DotJEM.Diagnostic.Writers
 
     public interface ILogArchiver
     {
-
+        void Archive(IWriterManger manager);
     }
 
     public class DeletingLogArchiver : ILogArchiver
     {
+        private readonly int maxFiles;
+
         public DeletingLogArchiver(int maxFiles)
         {
             if (maxFiles < 0) throw new ArgumentOutOfRangeException(nameof(maxFiles));
+            this.maxFiles = maxFiles;
         }
 
+        public void Archive(IWriterManger files)
+        {
+            List<FileInfo> listOfFiles = files
+                .AllFiles()
+                .ToList();
+
+            if (listOfFiles.Count < maxFiles)
+                return;
+
+            foreach (FileInfo fileInfo in listOfFiles.OrderByDescending(file => file.CreationTime).Skip(maxFiles))
+                fileInfo.Delete();
+        }
     }
-    public class ZippingLogArchiver : ILogArchiver {
-        public ZippingLogArchiver(int maxFiles)
+    public class ZippingLogArchiver : ILogArchiver
+    {
+        private readonly int maxFiles;
+        private readonly long maxSize;
+
+        public ZippingLogArchiver(int maxFiles, long maxSize)
         {
             if (maxFiles < 0) throw new ArgumentOutOfRangeException(nameof(maxFiles));
-        }
-    }
-
-    public interface ITraceEventFormatter
-    {
-        string Format(TraceEvent evt);
-    }
-
-    public class DefaultTraceEventFormatter : ITraceEventFormatter
-    {
-        public string Format(TraceEvent evt) => evt.ToString();
-    }
-
-    public interface IWriterManger
-    {
-        ITextWriter Acquire();
-    }
-
-    public interface ITextWriter
-    {
-        long Size { get; }
-        void Close();
-        void WriteLine(string value);
-        void WriteLines(params string[] values);
-        void Flush();
-    }
-
-    public class TextWriterProxy : ITextWriter
-    {
-        private readonly TextWriter writer;
-        private readonly int newLineByteCount;
-
-        public long Size { get; private set; }
-
-        public TextWriterProxy(TextWriter current, long currentSize)
-        {
-            Size = currentSize;
-            writer = current;
-            newLineByteCount = writer.Encoding.GetByteCount(writer.NewLine);
+            this.maxFiles = maxFiles;
+            this.maxSize = maxSize;
         }
 
-        public void WriteLine(string value)
+        public void Archive(IWriterManger files)
         {
-            //Note: This is significantly faster than having to refresh the file each time.
-            //      As an added bonus, we don't have to flush explicitly each time to get the
-            //      size which only saves even more time. That doesn't exclude us from
-            //      explicitly flushing in other scenarios to ensure that data is written to the disk though.
-     
-            Size += writer.Encoding.GetByteCount(value) + newLineByteCount;
-            writer.WriteLine(value);
-        }
+            List<FileInfo> listOfFiles = files
+                .AllFiles()
+                .ToList();
 
-        public void Write(string value)
-        {
-            Size += writer.Encoding.GetByteCount(value);
-            writer.Write(value);
-        }
-
-        public void WriteLines(params string[] values)
-        {
-            if (values.Length < 1)
+            if (listOfFiles.Count < maxFiles)
                 return;
-            WriteLine(string.Join(writer.NewLine, values));
+
+            using (ZipArchive archive = ZipFile.Open(files.NameProvider.Unique(".zip"), ZipArchiveMode.Create))
+            {
+                foreach (FileInfo file in listOfFiles)
+                {
+                    try
+                    {
+                        archive.CreateEntryFromFile(file.FullName, file.Name);
+                        file.Delete();
+                    }
+                    catch (Exception e)
+                    {
+                    }
+                }
+            }
+
+            List<FileInfo> listOfZipFiles = files
+                .AllFiles(".zip")
+                .ToList();
+
+            if (listOfZipFiles.Count < maxFiles)
+                return;
+
+
+            //TODO: Try catch correctly
+            using (ZipArchive targetArchive = ZipFile.Open(files.NameProvider.Unique(".zip"), ZipArchiveMode.Create))
+            {
+                foreach (FileInfo zipFile in listOfZipFiles.Where(file => file.Length < maxSize))
+                {
+                    try
+                    {
+                        using (ZipArchive sourceArchive = ZipFile.OpenRead(zipFile.FullName))
+                        {
+                            foreach (ZipArchiveEntry sourceEntry in sourceArchive.Entries)
+                            {
+                                ZipArchiveEntry targetEntry = targetArchive.CreateEntry(sourceEntry.Name);
+                                using (Stream sourceStream = sourceEntry.Open())
+                                {
+                                    using (Stream targetStream = targetEntry.Open())
+                                    {
+                                        sourceStream.CopyTo(targetStream);
+                                    }
+                                }
+                            }
+                        }
+                        zipFile.Delete();
+                    }
+                    catch (Exception e)
+                    {
+                    }
+                }
+            }
+
+            listOfZipFiles = files
+                .AllFiles(".zip")
+                .ToList();
+
+            if (listOfZipFiles.Count < maxFiles)
+                return;
+
+            foreach (FileInfo fileInfo in listOfZipFiles.OrderByDescending(file => file.CreationTime).Skip(maxFiles))
+                fileInfo.Delete();
+        }
+    }
+
+    public static class WriterManagerExtensions
+    {
+
+        public static bool Close(this IWriterManger self)
+        {
+            self.Acquire(out bool replaced).Close();
+            return replaced;
         }
 
-        public void Flush() => writer.Flush();
-        public void Close() => writer.Close();
+        public static bool WriteLine(this IWriterManger self, string value)
+        {
+            self.Acquire(out bool replaced).WriteLine(value);
+            return replaced;
+        }
+
+        public static bool WriteLines(this IWriterManger self, params string[] values)
+        {
+            self.Acquire(out bool replaced).WriteLines(values);
+            return replaced;
+        }
+
+        public static bool Flush(this IWriterManger self)
+        {
+            self.Acquire(out bool replaced).Flush();
+            return replaced;
+        }
+    }
+
+    public interface IFileLister
+    {
+        IEnumerable<FileInfo> AllFiles(string extension = null);
+    }
+
+    public interface IWriterManger : IFileLister
+    {
+        IFileNameProvider NameProvider { get; }
+        ITextWriter Acquire();
+        ITextWriter Acquire(out bool replaced);
     }
 
     public class WriterManger : IWriterManger
     {
         private readonly long maxSizeInBytes;
         private readonly IWriterFactory writerFactory;
-        private readonly IFileNameProvider fileNameProvider;
-
         private ITextWriter currentWriter;
         private FileInfo currentFile;
+
+        public IFileNameProvider NameProvider { get; }
 
         public WriterManger(string fileName) : this(new FileNameProvider(fileName), new StreamWriterFactory(), 64.KiloBytes()) { }
         public WriterManger(string fileName, long maxSizeInBytes) : this(new FileNameProvider(fileName), new StreamWriterFactory(), maxSizeInBytes) { }
@@ -253,20 +338,33 @@ namespace DotJEM.Diagnostic.Writers
         {
             if (maxSizeInBytes != 0 && maxSizeInBytes < 8.KiloBytes()) throw new ArgumentOutOfRangeException(nameof(maxSizeInBytes));
 
-            this.fileNameProvider = fileNameProvider;
+            this.NameProvider = fileNameProvider;
             this.writerFactory = writerFactory;
             this.maxSizeInBytes = maxSizeInBytes;
-
             this.currentFile = new FileInfo(fileNameProvider.FullName);
         }
 
-        public ITextWriter Acquire()
+        public ITextWriter Acquire() => Acquire(out _);
+
+        public ITextWriter Acquire(out bool replaced)
         {
+            replaced = false;
             if (currentWriter?.Size <= maxSizeInBytes)
                 return currentWriter;
 
+            replaced = true;
             currentWriter?.Close();
+            if (currentWriter != null)
+            {
+                currentFile.MoveTo(NameProvider.Unique());
+                currentFile = new FileInfo(NameProvider.FullName);
+            }
             return currentWriter = SafeOpen();
+        }
+
+        public IEnumerable<FileInfo> AllFiles(string extension = null)
+        {
+            return NameProvider.AllFiles(extension).Where(file => !file.FullName.Equals(currentFile.FullName, StringComparison.OrdinalIgnoreCase));
         }
 
         private ITextWriter SafeOpen()
@@ -277,167 +375,12 @@ namespace DotJEM.Diagnostic.Writers
                 if (writerFactory.TryOpen(currentFile.FullName, out ITextWriter writer))
                     return writer;
 
-                if (count > 10)
+                if (count < 10)
                     Thread.Sleep(count * 10);
 
-                currentFile = new FileInfo(fileNameProvider.Id(count));
+                currentFile = new FileInfo(NameProvider.Id(count));
                 count++;
             }
-        }
-    }
-
-
-    public interface IWriterFactory
-    {
-        bool TryOpen(string path, out ITextWriter writer);
-        Task<ITextWriter> TryOpenWithRetries(string path);
-        Task<ITextWriter> TryOpenWithRetries(string path, int maxTries);
-        Task<ITextWriter> TryOpenWithRetries(string path, CancellationToken cancellation);
-        Task<ITextWriter> TryOpenWithRetries(string path, int maxTries, CancellationToken cancellation);
-    }
-
-    public class StreamWriterFactory : IWriterFactory
-    {
-        public bool TryOpen(string path, out ITextWriter writer)
-        {
-            try
-            {
-                FileInfo file = new FileInfo(path);
-                StreamWriter streamWriter = new StreamWriter(path, true);
-                writer = new TextWriterProxy(streamWriter, file.Length);
-                return true;
-            }
-            catch
-            {
-                writer = null;
-                return false;
-            }
-        }
-
-        public Task<ITextWriter> TryOpenWithRetries(string path)
-            => TryOpenWithRetries(path, 100, CancellationToken.None);
-
-        public Task<ITextWriter> TryOpenWithRetries(string path, int maxTries)
-            => TryOpenWithRetries(path, maxTries, CancellationToken.None);
-
-        public Task<ITextWriter> TryOpenWithRetries(string path, CancellationToken cancellation)
-            => TryOpenWithRetries(path, 100, cancellation);
-
-        public async Task<ITextWriter> TryOpenWithRetries(string path, int maxTries, CancellationToken cancellation)
-        {
-            for (int i = 0; i < maxTries; i++)
-            {
-                if (cancellation.IsCancellationRequested)
-                    return null;
-
-                if (TryOpen(path, out ITextWriter writer))
-                    return writer;
-
-                if (i > maxTries / 10)
-                    await Task.Delay(i * 10, cancellation).ConfigureAwait(false);
-            }
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// NOTE: This is meant for async -> sync integration, it's recomended to elevtate async patterns all the way, but
-    ///       this is not always possible during refactoring of old code bases. This is also why these are not added as convinient extension methods.
-    /// </summary>
-    public static class Sync
-    {
-        public static T Await<T>(Task<T> task)
-        {
-            using (new NoSynchronizationContext())
-            {
-                try
-                {
-                    return task.Result;
-                    //return Task.Run(() => task).ConfigureAwait(false).GetAwaiter().GetResult();
-                }
-                catch (AggregateException ex)
-                {
-                    ExceptionDispatchInfo.Capture(ex.Flatten().InnerExceptions.First()).Throw();
-                    // ReSharper disable HeuristicUnreachableCode
-                    // The compiler requires either a throw or return, so even though this is unreachable, the compiler won't build unless it is there.
-                    throw;
-                    // ReSharper restore HeuristicUnreachableCode
-                }
-            }
-        }
-
-        public static T[] Await<T>(IEnumerable<Task<T>> tasks)
-        {
-            using (new NoSynchronizationContext())
-            {
-                try
-                {
-                    return Task.WhenAll(tasks).Result;
-                    //return Task.Run(() => Task.WhenAll(tasks)).ConfigureAwait(false).GetAwaiter().GetResult();
-                }
-                catch (AggregateException ex)
-                {
-                    ExceptionDispatchInfo.Capture(ex.Flatten().InnerExceptions.First()).Throw();
-                    // ReSharper disable HeuristicUnreachableCode
-                    // The compiler requires either a throw or return, so even though this is unreachable, the compiler won't build unless it is there.
-                    throw;
-                    // ReSharper restore HeuristicUnreachableCode
-                }
-            }
-        }
-
-        public static T[] Await<T>(params Task<T>[] tasks) => Await((IEnumerable<Task<T>>)tasks);
-
-        public static void Await(Task task)
-        {
-            using (new NoSynchronizationContext())
-            {
-                try
-                {
-                    task.Wait();
-                    //Task.Run(() => task).ConfigureAwait(false).GetAwaiter().GetResult();
-                }
-                catch (AggregateException ex)
-                {
-                    ExceptionDispatchInfo.Capture(ex.Flatten().InnerExceptions.First()).Throw();
-                    // ReSharper disable HeuristicUnreachableCode
-                    // The compiler requires either a throw or return, so even though this is unreachable, the compiler won't build unless it is there.
-                    throw;
-                    // ReSharper restore HeuristicUnreachableCode
-                }
-            }
-        }
-
-        public static void Await(IEnumerable<Task> tasks)
-        {
-            try
-            {
-                Task.WhenAll(tasks).Wait();
-                //Task.Run(() => Task.WhenAll(tasks)).ConfigureAwait(false).GetAwaiter().GetResult();
-            }
-            catch (AggregateException ex)
-            {
-                ExceptionDispatchInfo.Capture(ex.Flatten().InnerExceptions.First()).Throw();
-                // ReSharper disable HeuristicUnreachableCode
-                // The compiler requires either a throw or return, so even though this is unreachable, the compiler won't build unless it is there.
-                throw;
-                // ReSharper restore HeuristicUnreachableCode
-            }
-        }
-
-        public static void Await(params Task[] tasks) => Await((IEnumerable<Task>)tasks);
-
-        private class NoSynchronizationContext : IDisposable
-        {
-            private readonly SynchronizationContext context;
-
-            public NoSynchronizationContext()
-            {
-                context = SynchronizationContext.Current;
-                SynchronizationContext.SetSynchronizationContext(null);
-            }
-            public void Dispose() =>
-                SynchronizationContext.SetSynchronizationContext(context);
         }
     }
 }

@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace DotJEM.Diagnostic
+namespace DotJEM.Diagnostic.Common
 {
     public class Disposable : IDisposable
     {

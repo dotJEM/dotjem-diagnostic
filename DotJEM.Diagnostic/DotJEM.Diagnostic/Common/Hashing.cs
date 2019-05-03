@@ -1,9 +1,8 @@
 ﻿using System;
-using System.Diagnostics;
 using System.Linq;
 using System.Security.Cryptography;
 
-namespace DotJEM.Diagnostic
+namespace DotJEM.Diagnostic.Common
 {
     public class IdProvider : Disposable
     {
@@ -14,13 +13,14 @@ namespace DotJEM.Diagnostic
 
         public string Next => Compute();
 
-        public string Compute()
+        public string Compute() => Compute(Guid.NewGuid());
+
+        public string Compute(Guid guid)
         {
-            byte[] hash = hasher.ComputeHash(Guid.NewGuid().ToByteArray());
+            byte[] hash = hasher.ComputeHash(guid.ToByteArray());
             string value = string.Join(string.Empty, hash.Select(b => b.ToString("x2")));
             return length < 1 ? value : value.Substring(0, length);
         }
-
         protected override void Dispose(bool disposing)
         {
             if (disposing)
