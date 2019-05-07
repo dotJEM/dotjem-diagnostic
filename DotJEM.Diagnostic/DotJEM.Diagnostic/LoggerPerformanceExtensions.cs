@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Transactions;
 using Newtonsoft.Json.Linq;
 
 namespace DotJEM.Diagnostic
@@ -45,6 +46,8 @@ namespace DotJEM.Diagnostic
                 return func();
         }
 
+        public static void Commit(this IPerformanceTracker self, object obj) 
+            => self.Commit(TransformObject(obj));
 
         private static JToken TransformObject(object obj) => obj != null ? JToken.FromObject(obj) : null;
     }

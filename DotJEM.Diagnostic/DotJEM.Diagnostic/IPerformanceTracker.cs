@@ -6,7 +6,6 @@ namespace DotJEM.Diagnostic
 {
     public interface IPerformanceTracker : IDisposable
     {
-        void Commit(object customData);
         void Commit(JToken customData = null);
     }
     public class PerformanceTracker : Disposable, IPerformanceTracker
@@ -20,12 +19,7 @@ namespace DotJEM.Diagnostic
             this.type = type;
             this.logger = logger;
         }
-
-        public void Commit(object customData)
-        {
-            throw new NotImplementedException();
-        }
-
+        
         public void Commit(JToken customData = null)
         {
             if (!committed)
