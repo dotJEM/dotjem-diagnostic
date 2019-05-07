@@ -12,7 +12,6 @@ namespace DotJEM.Diagnostic
     {
         private readonly string type;
         private readonly ILogger logger;
-        private volatile bool committed = false;
 
         public PerformanceTracker(ILogger logger, string type)
         {
@@ -22,11 +21,10 @@ namespace DotJEM.Diagnostic
         
         public void Commit(JToken customData = null)
         {
-            if (!committed)
+            if (!Disposed)
             {
                 logger.LogAsync("<<< " + type, customData);
             }
-            committed = true;
         }
 
         protected override void Dispose(bool disposing)

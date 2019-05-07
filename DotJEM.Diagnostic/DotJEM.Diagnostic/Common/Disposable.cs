@@ -11,7 +11,8 @@ namespace DotJEM.Diagnostic.Common
             if (Disposed)
                 return;
 
-            Dispose(Disposed = true);
+            Dispose(Disposed);
+            Disposed = true;
             GC.SuppressFinalize(this);
         }
 
