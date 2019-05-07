@@ -1,13 +1,21 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.27703.2035
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.28729.10
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotJEM.Diagnostic", "DotJEM.Diagnostic\DotJEM.Diagnostic.csproj", "{69735EE5-5F7B-425D-B6E4-3564F5107EB0}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DotJEM.Diagnostic", "DotJEM.Diagnostic\DotJEM.Diagnostic.csproj", "{69735EE5-5F7B-425D-B6E4-3564F5107EB0}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Demo", "Demo\Demo.csproj", "{3B931B17-87FA-4999-8E1B-E6D4CFFAE862}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotJEM.Diagnostic.Tests", "DotJEM.Diagnostic.Tests\DotJEM.Diagnostic.Tests.csproj", "{54E6088F-8757-4F39-BEAC-E8F523564ED1}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SolutionItems", "SolutionItems", "{0AE5261C-2B56-4E16-A42C-B4002E73DBC3}"
+	ProjectSection(SolutionItems) = preProject
+		..\.gitignore = ..\.gitignore
+		..\appveyor.yml = ..\appveyor.yml
+		..\LICENSE = ..\LICENSE
+		..\README.md = ..\README.md
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

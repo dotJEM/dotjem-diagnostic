@@ -53,7 +53,8 @@ namespace DotJEM.Diagnostic
         private readonly Dictionary<string, ICustomDataProvider> providers;
 
         public HighPrecisionLogger(ITraceEventCollector collector) 
-            : this(collector, ("Identity", new IdentityProvider()),
+            : this(collector, 
+                ("Identity", new IdentityProvider()),
                 ("Thread", new ThreadIdProvider()),
                 ("Process", new ProcessIdProvider())
                 )
@@ -91,26 +92,6 @@ namespace DotJEM.Diagnostic
     /// </summary>
     public interface ILogger
     {
-        //bool Enabled { get; }
-        //IDiagnosticsLogger Diag { get; }
-
-        //IPerformanceTracker Track(string type, params object[] args);
-        //IPerformanceTracker TrackRequest(HttpRequestMessage request);
-        //IPerformanceTracker TrackTask(string name);
-
-        //void TrackAction(Action action, params object[] args);
-        //void TrackAction(string name, Action action, params object[] args);
-
-        //T TrackFunction<T>(Func<T> func, params object[] args);
-        //T TrackFunction<T>(string name, Func<T> func, params object[] args);
-
-        //void LogSingleEvent(string type, long elapsed, params object[] args);
-
-        //IPerformanceTracker Track(string type);
-        //IPerformanceTracker Track(string type, params object[] args);
-        //IPerformanceTracker Track(string type, string json);
-        //IPerformanceTracker Track(string type, JObject json);
-
         Task LogAsync(string type, object customData = null);
     }
 
