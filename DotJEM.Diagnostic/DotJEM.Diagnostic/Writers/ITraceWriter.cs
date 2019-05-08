@@ -21,10 +21,9 @@ namespace DotJEM.Diagnostic.Writers
         }
 
         //TODO: Formatter.
-        public async Task Write(TraceEvent trace) 
-            => await Task.Run(() => Console.WriteLine(formatter.Format(trace)))
-                .ConfigureAwait(false);
+        public Task Write(TraceEvent trace) 
+            => Task.Run(() => Console.WriteLine(formatter.Format(trace)));
 
-        public async Task AsyncFlush() => await Task.CompletedTask.ConfigureAwait(false);
+        public Task AsyncFlush() => Task.CompletedTask;
     }
 }

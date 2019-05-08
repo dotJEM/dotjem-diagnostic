@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using DotJEM.AdvParsers;
 using DotJEM.Diagnostic.Common;
 using DotJEM.Diagnostic.Model;
+using DotJEM.Diagnostic.Writers.Output;
 
 namespace DotJEM.Diagnostic.Writers
 {
@@ -125,6 +126,9 @@ namespace DotJEM.Diagnostic.Writers
 
             lock (padlock)
             {
+                if (started)
+                    return;
+
                 started = true;
                 workerThread.Start();
             }
@@ -284,7 +288,6 @@ namespace DotJEM.Diagnostic.Writers
 
     public static class WriterManagerExtensions
     {
-
         public static bool Close(this IWriterManger self)
         {
             self.Acquire(out bool replaced).Close();
@@ -372,11 +375,8 @@ namespace DotJEM.Diagnostic.Writers
             int count = 0;
             while (true)
             {
-                if (writerFactory.TryOpen(currentFile.FullName, out ITextWriter writer))
+                if (writerFactory.TryOpenWithRetries(currentFile.FullName, 20, CancellationToken.None, out ITextWriter writer))
                     return writer;
-
-                if (count < 10)
-                    Thread.Sleep(count * 10);
 
                 currentFile = new FileInfo(NameProvider.Id(count));
                 count++;

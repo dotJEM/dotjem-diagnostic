@@ -1,16 +1,12 @@
 ﻿using System.IO;
 using System.Threading;
-using System.Threading.Tasks;
 
-namespace DotJEM.Diagnostic.Writers
+namespace DotJEM.Diagnostic.Writers.Output
 {
     public interface IWriterFactory
     {
         bool TryOpen(string path, out ITextWriter writer);
-        Task<ITextWriter> TryOpenWithRetries(string path);
-        Task<ITextWriter> TryOpenWithRetries(string path, int maxTries);
-        Task<ITextWriter> TryOpenWithRetries(string path, CancellationToken cancellation);
-        Task<ITextWriter> TryOpenWithRetries(string path, int maxTries, CancellationToken cancellation);
+        bool TryOpenWithRetries(string path, int maxTries, CancellationToken cancellation, out ITextWriter writer);
     }
 
     public class StreamWriterFactory : IWriterFactory
@@ -31,29 +27,22 @@ namespace DotJEM.Diagnostic.Writers
             }
         }
 
-        public Task<ITextWriter> TryOpenWithRetries(string path)
-            => TryOpenWithRetries(path, 100, CancellationToken.None);
 
-        public Task<ITextWriter> TryOpenWithRetries(string path, int maxTries)
-            => TryOpenWithRetries(path, maxTries, CancellationToken.None);
-
-        public Task<ITextWriter> TryOpenWithRetries(string path, CancellationToken cancellation)
-            => TryOpenWithRetries(path, 100, cancellation);
-
-        public async Task<ITextWriter> TryOpenWithRetries(string path, int maxTries, CancellationToken cancellation)
+        public bool TryOpenWithRetries(string path, int maxTries, CancellationToken cancellation, out ITextWriter writer)
         {
+            writer = null;
             for (int i = 0; i < maxTries; i++)
             {
                 if (cancellation.IsCancellationRequested)
-                    return null;
+                    return false;
 
-                if (TryOpen(path, out ITextWriter writer))
-                    return writer;
+                if (TryOpen(path, out writer))
+                    return true;
 
-                if (i > maxTries / 10)
-                    await Task.Delay(i * 10, cancellation).ConfigureAwait(false);
+                if (i > 3)
+                    Thread.Sleep(i * 10);
             }
-            return null;
+            return false;
         }
     }
 }

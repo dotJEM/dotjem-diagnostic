@@ -13,12 +13,6 @@ namespace DotJEM.Diagnostic.Collectors
         Task Collect(TraceEvent trace);
     }
 
-    //TODO: This is a temp collector, collectors are just meant to branch events to different writers, this should be a console writer 
-    public class ConsoleTraceEventCollector : ITraceEventCollector
-    {
-        public async Task Collect(TraceEvent trace) => await Task.Run(()=>Console.WriteLine(trace)).ConfigureAwait(false);
-    }
-
     public class CompositeTraceEventCollector : ITraceEventCollector
     {
         private readonly List<ITraceEventCollector> collectors;
@@ -32,7 +26,7 @@ namespace DotJEM.Diagnostic.Collectors
         {
             this.collectors = collectors.ToList();
         }
-        public async Task Collect(TraceEvent trace) => await Task.WhenAll(collectors.Select(collector => collector.Collect(trace))).ConfigureAwait(false);
+        public Task Collect(TraceEvent trace) => Task.WhenAll(collectors.Select(collector => collector.Collect(trace)));
     }
 
     public class TraceEventCollector : ITraceEventCollector
@@ -44,7 +38,7 @@ namespace DotJEM.Diagnostic.Collectors
             this.writer = writer;
         }
 
-        public async Task Collect(TraceEvent trace) => await writer.Write(trace).ConfigureAwait(false);
+        public Task Collect(TraceEvent trace) => writer.Write(trace);
     }
 
 }
