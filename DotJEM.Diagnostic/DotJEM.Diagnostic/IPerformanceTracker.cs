@@ -23,7 +23,7 @@ namespace DotJEM.Diagnostic
         {
             if (!Disposed)
             {
-                logger.LogAsync("<<< " + type, customData);
+                logger.LogAsync("< " + type, customData);
             }
         }
 

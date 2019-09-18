@@ -10,7 +10,7 @@ namespace DotJEM.Diagnostic
         public static IPerformanceTracker Track(this ILogger self, string type, JToken customData = null)
         {
             type = $"{type}:{IdProvider.Default.Next}";
-            self.LogAsync(">>> " + type, customData);
+            self.LogAsync("> " + type, customData);
             return new PerformanceTracker(self, type);
         }
 
