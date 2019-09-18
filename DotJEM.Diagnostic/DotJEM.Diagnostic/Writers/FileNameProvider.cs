@@ -6,6 +6,7 @@ namespace DotJEM.Diagnostic.Writers
 {
     public interface IFileNameProvider : IFileLister
     {
+        string Directory { get; }
         string FullName { get; }
         string Id(int id);
         string Unique();

@@ -340,11 +340,13 @@ namespace DotJEM.Diagnostic.Writers
         public WriterManger(IFileNameProvider fileNameProvider, IWriterFactory writerFactory, long maxSizeInBytes)
         {
             if (maxSizeInBytes != 0 && maxSizeInBytes < 8.KiloBytes()) throw new ArgumentOutOfRangeException(nameof(maxSizeInBytes));
-
+            
             this.NameProvider = fileNameProvider;
             this.writerFactory = writerFactory;
             this.maxSizeInBytes = maxSizeInBytes;
             this.currentFile = new FileInfo(fileNameProvider.FullName);
+
+            Directory.CreateDirectory(fileNameProvider.Directory);
         }
 
         public ITextWriter Acquire() => Acquire(out _);
