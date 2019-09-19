@@ -57,14 +57,11 @@ namespace Demo
             await Task.Delay(rnd.Next(50, 300)).ConfigureAwait(false);
             if (depth > 0)
             {
-                using (new CorrelationScope())
+                using (IPerformanceTracker scope = _logger.Track("Foobar", new { Name = msg }))
                 {
-                    using (IPerformanceTracker scope = _logger.Track("Foobar", new {Name = msg}))
-                    {
-                        await Task.WhenAll(Enumerable.Range(0, 10)
-                                .Select(async i => await SplitTask(depth - 1, $"{msg}.{i}").ConfigureAwait(false)))
-                            .ConfigureAwait(false);
-                    }
+                    await Task.WhenAll(Enumerable.Range(0, 10)
+                            .Select(async i => await SplitTask(depth - 1, $"{msg}.{i}").ConfigureAwait(false)))
+                        .ConfigureAwait(false);
                 }
             }
         }
