@@ -1,17 +1,23 @@
 ﻿using System;
 using System.Transactions;
 using DotJEM.Diagnostic.Common;
+using DotJEM.Diagnostic.Correlation;
 using Newtonsoft.Json.Linq;
 
 namespace DotJEM.Diagnostic
 {
     public static class LoggerPerformanceExtensions
     {
-        public static IPerformanceTracker Track(this ILogger self, string type, JToken customData = null)
+        public static IPerformanceTracker Track(this ILogger self, string type, JToken customData = null, bool correlationScope = true)
         {
+            CorrelationScope scope = correlationScope 
+                ? new CorrelationScope()
+                : null;
+
             type = $"{type}:{IdProvider.Default.Next}";
             self.LogAsync("> " + type, customData);
-            return new PerformanceTracker(self, type);
+            return new PerformanceTracker(self, type, scope);
+
         }
 
         public static IPerformanceTracker Track(this ILogger self, string type, object customData)

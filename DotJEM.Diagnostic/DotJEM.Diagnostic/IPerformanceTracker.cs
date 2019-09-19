@@ -1,5 +1,6 @@
 ﻿using System;
 using DotJEM.Diagnostic.Common;
+using DotJEM.Diagnostic.Correlation;
 using Newtonsoft.Json.Linq;
 
 namespace DotJEM.Diagnostic
@@ -12,10 +13,12 @@ namespace DotJEM.Diagnostic
     {
         private readonly string type;
         private readonly ILogger logger;
+        private readonly IDisposable scope;
 
-        public PerformanceTracker(ILogger logger, string type)
+        public PerformanceTracker(ILogger logger, string type, IDisposable scope)
         {
             this.type = type;
+            this.scope = scope;
             this.logger = logger;
         }
         
@@ -30,6 +33,7 @@ namespace DotJEM.Diagnostic
         protected override void Dispose(bool disposing)
         {
             Commit();
+            scope?.Dispose();
             base.Dispose(disposing);
         }
     }
