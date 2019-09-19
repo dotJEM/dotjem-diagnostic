@@ -75,6 +75,7 @@ namespace DotJEM.Diagnostic
 
         public async Task LogAsync(string type, object customData = null)
         {
+            //todo : if we fail in this block, we should support the raising of some event clients can listen to to catch this, as that would be very severe.
             if (!(customData is JToken token))
                 token = customData != null ? JToken.FromObject(customData) : null;
 

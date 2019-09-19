@@ -17,6 +17,8 @@ namespace DotJEM.Diagnostic
         private readonly string type;
         private readonly ILogger logger;
         private readonly IDisposable scope;
+        private bool committed = false;
+        private object padlock = new object();
 
         public PerformanceTracker(ILogger logger, string type, IDisposable scope)
         {
@@ -27,14 +29,20 @@ namespace DotJEM.Diagnostic
         
         public void Commit(JToken customData = null)
         {
-            if (Disposed)
-                return;
-
+            lock (padlock)
+            {
+                if (committed)
+                    return;
+                committed = true;
+            }
             logger.LogAsync("< " + type, customData);
         }
 
         protected override void Dispose(bool disposing)
         {
+            if (Disposed)
+                return;
+
             Commit();
             scope?.Dispose();
             base.Dispose(disposing);
