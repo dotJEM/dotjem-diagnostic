@@ -23,10 +23,6 @@ namespace DotJEM.Diagnostic.Model
             Correlation = correlation;
             CustomData = customData.ToArray();
             CustomObject = customObject;
-
-            toStringImpl = CustomObject != null
-                ? (FormattableString)$"{Time:yyyy-MM-ddTHH:mm:ss.fffffff}\t{Correlation}\t{Type}\t{string.Join("\t", CustomData.Select(data => data.ToString()))}\t{CustomObject?.ToString(Formatting.None)}"
-                : $"{Time:yyyy-MM-ddTHH:mm:ss.fffffff}\t{Correlation}\t{Type}\t{string.Join("\t", CustomData.Select(data => data.ToString()))}";
             toStringImpl = SelectToStringImplementation(CustomData, CustomObject);
         }
 

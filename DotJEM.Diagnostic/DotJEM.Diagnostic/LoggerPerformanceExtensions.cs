@@ -14,10 +14,12 @@ namespace DotJEM.Diagnostic
                 ? new CorrelationScope()
                 : null;
 
-            type = $"{type}:{IdProvider.Default.Next}";
+            type = correlationScope 
+                ? type
+                : $"{type}:{IdProvider.Default.Next}";
+
             self.LogAsync("> " + type, customData);
             return new PerformanceTracker(self, type, scope);
-
         }
 
         public static IPerformanceTracker Track(this ILogger self, string type, object customData)
