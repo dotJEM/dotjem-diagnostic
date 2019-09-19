@@ -37,7 +37,9 @@ namespace DotJEM.Diagnostic
         public static void TrackAction(this ILogger self, Action action, string type, JToken customData = null)
         {
             using (self.Track(type, customData))
+            {
                 action();
+            }
         }
 
 
@@ -53,7 +55,9 @@ namespace DotJEM.Diagnostic
         public static T TrackFunction<T>(this ILogger self, Func<T> func, string type, JToken customData = null)
         {
             using (self.Track(type, customData))
+            {
                 return func();
+            }
         }
 
         public static void Commit(this IPerformanceTracker self, object obj) 

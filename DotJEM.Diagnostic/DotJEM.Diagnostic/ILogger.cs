@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading;
@@ -74,13 +75,13 @@ namespace DotJEM.Diagnostic
 
         public async Task LogAsync(string type, object customData = null)
         {
-            if(!(customData is JToken token))
-                token = JToken.FromObject(customData);
+            if (!(customData is JToken token))
+                token = customData != null ? JToken.FromObject(customData) : null;
 
             TraceEvent evt = new TraceEvent(
-                type, 
+                type,
                 HighResolutionTime.Now,
-                CorrelationScope.Identifier, 
+                CorrelationScope.Identifier,
                 providers.Select(p => p.Value.Generate(p.Key)),
                 token);
             await collector.Collect(evt).ConfigureAwait(false);

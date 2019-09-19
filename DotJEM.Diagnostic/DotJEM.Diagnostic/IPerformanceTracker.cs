@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Diagnostics;
+using System.IO;
 using DotJEM.Diagnostic.Common;
 using DotJEM.Diagnostic.Correlation;
 using Newtonsoft.Json.Linq;
@@ -9,6 +11,7 @@ namespace DotJEM.Diagnostic
     {
         void Commit(JToken customData = null);
     }
+
     public class PerformanceTracker : Disposable, IPerformanceTracker
     {
         private readonly string type;
@@ -24,10 +27,10 @@ namespace DotJEM.Diagnostic
         
         public void Commit(JToken customData = null)
         {
-            if (!Disposed)
-            {
-                logger.LogAsync("< " + type, customData);
-            }
+            if (Disposed)
+                return;
+
+            logger.LogAsync("< " + type, customData);
         }
 
         protected override void Dispose(bool disposing)
