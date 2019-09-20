@@ -30,7 +30,7 @@ namespace DotJEM.Diagnostic
         public void Commit(JToken customData = null)
         {
             if (Disposed || complete)
-                throw new ObjectDisposedException("Cannot commit extra data ");
+                throw new ObjectDisposedException("Cannot commit extra data to a disposed tracker.");
 
             logger.LogAsync("- " + type, customData);
         }
