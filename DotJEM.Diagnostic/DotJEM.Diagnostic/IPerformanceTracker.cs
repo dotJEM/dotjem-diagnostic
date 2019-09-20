@@ -16,9 +16,9 @@ namespace DotJEM.Diagnostic
     {
         private readonly string type;
         private readonly ILogger logger;
-        private readonly IDisposable scope;
-        private bool committed = false;
+        private IDisposable scope;
         private object padlock = new object();
+        private bool complete;
 
         public PerformanceTracker(ILogger logger, string type, IDisposable scope)
         {
@@ -29,22 +29,28 @@ namespace DotJEM.Diagnostic
         
         public void Commit(JToken customData = null)
         {
-            lock (padlock)
-            {
-                if (committed)
-                    return;
-                committed = true;
-            }
-            logger.LogAsync("< " + type, customData);
+            if (Disposed || complete)
+                throw new ObjectDisposedException("Cannot commit extra data ");
+
+            logger.LogAsync("- " + type, customData);
         }
 
         protected override void Dispose(bool disposing)
         {
-            if (Disposed)
+            if (Disposed || complete)
                 return;
 
-            Commit();
+            lock (padlock)
+            {
+                if (complete)
+                    return;
+                complete = true;
+            }
+
+            logger.LogAsync("< " + type);
             scope?.Dispose();
+            scope = null;
+
             base.Dispose(disposing);
         }
     }
