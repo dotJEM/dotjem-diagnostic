@@ -358,12 +358,16 @@ namespace DotJEM.Diagnostic.Writers
                 return currentWriter;
 
             replaced = true;
-            currentWriter?.Close();
-            if (currentWriter != null)
-            {
-                currentFile.MoveTo(NameProvider.Unique());
-                currentFile = new FileInfo(NameProvider.FullName);
-            }
+
+            if (currentWriter == null)
+                return currentWriter = SafeOpen();
+            
+            currentWriter.Close();
+            currentWriter.Dispose();
+            currentWriter = null;
+            currentFile.MoveTo(NameProvider.Unique());
+            currentFile = new FileInfo(NameProvider.FullName);
+
             return currentWriter = SafeOpen();
         }
 

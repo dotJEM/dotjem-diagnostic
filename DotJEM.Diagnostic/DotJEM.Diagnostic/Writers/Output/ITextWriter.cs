@@ -1,8 +1,9 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 
-namespace DotJEM.Diagnostic.Writers
+namespace DotJEM.Diagnostic.Writers.Output
 {
-    public interface ITextWriter
+    public interface ITextWriter : IDisposable
     {
         long Size { get; }
         void Close();
@@ -51,6 +52,7 @@ namespace DotJEM.Diagnostic.Writers
 
         public void Flush() => writer.Flush();
         public void Close() => writer.Close();
+        public void Dispose() => writer.Dispose();
     }
 
 }
