@@ -11,6 +11,10 @@
     <PackageVersion></PackageVersion>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DocumentationFile>F:\OSS\dotJEM Stack\dotjem-diagnostic\DotJEM.Diagnostic\DotJEM.Diagnostic\DotJEM.Diagnostic.xml</DocumentationFile>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="DotJEM.AdvParsers" Version="1.1.1" />
     <PackageReference Include="Newtonsoft.Json" Version="12.0.2" />

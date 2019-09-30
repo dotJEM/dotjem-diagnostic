@@ -15,6 +15,21 @@ using Newtonsoft.Json.Linq;
 
 namespace DotJEM.Diagnostic
 {
+
+    /// <summary>
+    /// Provides an interface for a HighPrecisionLogger
+    /// </summary>
+    public interface ILogger
+    {
+        /// <summary>
+        /// Logs.
+        /// </summary>
+        /// <param name="type"></param>
+        /// <param name="customData"></param>
+        /// <returns></returns>
+        Task LogAsync(string type, object customData = null);
+    }
+
     /// <summary>
     /// Provides a logger which uses the GetSystemTimePreciseAsFileTime api to provide high precision timestamps as well as a correlation ID's to track
     /// logical call contexts to provide a fast output format which can later be analyzed to provide timings of methods, blocks or entire requests etc.
@@ -45,14 +60,16 @@ namespace DotJEM.Diagnostic
     ///     </description>  
     ///   </item>  
     /// </list>
-    ///
-    /// 
     /// </summary>
     public class HighPrecisionLogger : ILogger
     {
         private readonly ITraceEventCollector collector;
         private readonly Dictionary<string, ICustomDataProvider> providers;
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="collector"></param>
         public HighPrecisionLogger(ITraceEventCollector collector) 
             : this(collector, 
                 ("Identity", new IdentityProvider()),
@@ -62,20 +79,35 @@ namespace DotJEM.Diagnostic
         {
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="collector"></param>
+        /// <param name="providers"></param>
         public HighPrecisionLogger(ITraceEventCollector collector, params (string Name, ICustomDataProvider Provider)[] providers)
             : this(collector, providers.ToDictionary(tuple => tuple.Name, tuple => tuple.Provider))
         {
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="collector"></param>
+        /// <param name="providers"></param>
         public HighPrecisionLogger(ITraceEventCollector collector, Dictionary<string, ICustomDataProvider> providers)
         {
             this.providers = providers;
             this.collector = collector;
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="type"></param>
+        /// <param name="customData"></param>
+        /// <returns></returns>
         public async Task LogAsync(string type, object customData = null)
         {
-            //todo : if we fail in this block, we should support the raising of some event clients can listen to to catch this, as that would be very severe.
             if (!(customData is JToken token))
                 token = customData != null ? JToken.FromObject(customData) : null;
 
@@ -87,14 +119,6 @@ namespace DotJEM.Diagnostic
                 token);
             await collector.Collect(evt).ConfigureAwait(false);
         }
-    }
-
-    /// <summary>
-    /// Provides an interface for a HighPrecisionLogger
-    /// </summary>
-    public interface ILogger
-    {
-        Task LogAsync(string type, object customData = null);
     }
 
 }
