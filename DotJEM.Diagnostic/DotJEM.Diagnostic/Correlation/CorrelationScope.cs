@@ -12,33 +12,34 @@ namespace DotJEM.Diagnostic.Correlation
         public static string Identifier => Current?.ToString() ?? "00000000.00000000.00000000";
 
         public string Id { get; }
+        public bool Isolated { get; }
         public string CorrelationId { get; }
         public CorrelationScope Parent { get; }
 
-        public CorrelationScope()
-            :this(IdProvider.Default.Next)
+        public CorrelationScope(bool isolated = false)
+            :this(IdProvider.Default.Next, isolated)
         {
         }
 
-        public CorrelationScope(Guid source)
-            :this(IdProvider.Default.Compute(source))
+        public CorrelationScope(Guid source, bool isolated = false)
+            :this(IdProvider.Default.Compute(source), isolated)
         {
         }
 
-        private CorrelationScope(string id)
+        private CorrelationScope(string id, bool isolated)
         {
             Parent = Current;
             Id = id;
+            Isolated = isolated;
             //CorrelationId = Parent?.CorrelationId ?? IdProvider.Default.Next;
             //Note: This saves us some time and shouldn't really cause any correlation issues, if it does we can reinstate a unique ID for the Root.
-            CorrelationId = Parent?.CorrelationId ?? Id;
+            CorrelationId = isolated || Parent == null ? Id : Parent.CorrelationId;
             current.Value = this;
         }
 
         protected override void Dispose(bool disposing)
         {
             current.Value = Parent;
-            base.Dispose(disposing);
         }
 
         public override string ToString() => $"{CorrelationId}.{Id}.{Parent?.Id??"00000000"}";

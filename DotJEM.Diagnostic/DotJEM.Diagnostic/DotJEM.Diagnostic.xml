@@ -78,7 +78,7 @@
             <param name="customData"></param>
             <returns></returns>
         </member>
-        <member name="T:DotJEM.Diagnostic.Writers.QueuingTraceWriter">
+        <member name="T:DotJEM.Diagnostic.Writers.NonBlocking.QueuingTraceWriter">
             <summary>
             Provides a <see cref="T:DotJEM.Diagnostic.Writers.ITraceWriter"/> that doesn't block while waiting for the IO layer when writing out trace events.
             Instead it Queues each event on a Queue and pulses a writer thread.

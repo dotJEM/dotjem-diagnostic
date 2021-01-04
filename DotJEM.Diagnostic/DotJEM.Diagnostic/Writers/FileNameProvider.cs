@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using DotJEM.Diagnostic.Writers.NonBlocking;
 
 namespace DotJEM.Diagnostic.Writers
 {

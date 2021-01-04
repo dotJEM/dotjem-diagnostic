@@ -12,6 +12,7 @@ using DotJEM.Diagnostic.Correlation;
 using DotJEM.Diagnostic.DataProviders;
 using DotJEM.Diagnostic.Model;
 using DotJEM.Diagnostic.Writers;
+using DotJEM.Diagnostic.Writers.NonBlocking;
 using Newtonsoft.Json.Linq;
 
 namespace Demo
@@ -41,7 +42,7 @@ namespace Demo
                 .AddProvider("random", new RandomProvider())
                 .Build();
 
-            Task[] tasks = Enumerable.Range(0, 10).Select(async i => await SplitTask(10, i.ToString()).ConfigureAwait(false)).ToArray();
+            Task[] tasks = Enumerable.Range(0, 10).Select(async i => await SplitTask(6, 6, i.ToString()).ConfigureAwait(false)).ToArray();
             Task.WaitAll(tasks);
             collector.Collect(new TraceEvent("DONE", DateTime.Now, "", new CustomData[0], new JObject())).Wait();
             Console.WriteLine("DONE");
@@ -52,15 +53,25 @@ namespace Demo
             writer.Dispose();
         }
 
-        static async Task SplitTask(int depth, string msg)
+        static async Task SplitTask(int depth, int width, string msg)
         {
             await Task.Delay(rnd.Next(50, 300)).ConfigureAwait(false);
             if (depth > 0)
             {
-                using (IPerformanceTracker scope = _logger.Track("Foobar", new { Name = msg }))
+                using (IPerformanceTracker scope = _logger.Track("Foobar", new { Name = msg }, true))
                 {
-                    await Task.WhenAll(Enumerable.Range(0, 10)
-                            .Select(async i => await SplitTask(depth - 1, $"{msg}.{i}").ConfigureAwait(false)))
+                    await Task.WhenAll(Enumerable.Range(0, width)
+                            .Select(async i => await SplitTask(depth - 1, width, $"{msg}.{i}").ConfigureAwait(false)))
+                        .ConfigureAwait(false);
+                }
+            }
+
+            if (depth == 3)
+            {
+                using (IPerformanceTracker scope = _logger.Track("Foobar", new { Name = msg }, new CorrelationScope(true)))
+                {
+                    await Task.WhenAll(Enumerable.Range(0, width)
+                            .Select(async i => await SplitTask(depth - 1, 3, $"{msg}.{i}").ConfigureAwait(false)))
                         .ConfigureAwait(false);
                 }
             }
