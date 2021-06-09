@@ -9,7 +9,7 @@ namespace DotJEM.Diagnostic
     public static class LoggerPerformanceExtensions
     {
 
-        public static IPerformanceTracker Track(this ILogger self, string type, JToken customData = null, CorrelationScope correlationScope = null)
+        public static IPerformanceTracker Track(this ILogger self, string type, JToken customData, CorrelationScope correlationScope)
         {
             type = correlationScope != null
                 ? type
@@ -18,6 +18,8 @@ namespace DotJEM.Diagnostic
             self.LogAsync("> " + type, customData);
             return new PerformanceTracker(self, type, correlationScope);
         }
+        public static IPerformanceTracker Track(this ILogger self, string type, CorrelationScope correlationScope)
+            => self.Track(type, null, correlationScope);
 
         public static IPerformanceTracker Track(this ILogger self, string type, JToken customData = null, bool createCorrelationScope = true)
             => self.Track(type, customData, createCorrelationScope ? new CorrelationScope() : null);
@@ -25,7 +27,7 @@ namespace DotJEM.Diagnostic
         public static IPerformanceTracker Track(this ILogger self, string type, object customData, bool createCorrelationScope = true)
             => self.Track(type, TransformObject(customData), createCorrelationScope ? new CorrelationScope() : null);
 
-        public static IPerformanceTracker Track(this ILogger self, string type, object customData, CorrelationScope correlationScope = null)
+        public static IPerformanceTracker Track(this ILogger self, string type, object customData, CorrelationScope correlationScope)
             => self.Track(type, TransformObject(customData), correlationScope);
 
         public static void TrackAction(this ILogger self, Action action, JToken customData = null, bool createCorrelationScope = true)
@@ -41,17 +43,22 @@ namespace DotJEM.Diagnostic
             => self.TrackAction(action, type, customData, createCorrelationScope ? new CorrelationScope() : null);
 
 
+        public static void TrackAction(this ILogger self, Action action, CorrelationScope correlationScope)
+            => self.TrackAction(action, action.Method.Name, null, correlationScope);
 
-        public static void TrackAction(this ILogger self, Action action, JToken customData = null, CorrelationScope correlationScope = null)
+        public static void TrackAction(this ILogger self, Action action, JToken customData, CorrelationScope correlationScope)
             => self.TrackAction(action, action.Method.Name, customData, correlationScope);
 
-        public static void TrackAction(this ILogger self, Action action, object customData, CorrelationScope correlationScope = null)
+        public static void TrackAction(this ILogger self, Action action, object customData, CorrelationScope correlationScope)
             => self.TrackAction(action, action.Method.Name, customData, correlationScope);
 
-        public static void TrackAction(this ILogger self, Action action, string type, object customData, CorrelationScope correlationScope = null)
+        public static void TrackAction(this ILogger self, Action action, string type, object customData, CorrelationScope correlationScope)
             => self.TrackAction(action, type, TransformObject(customData), correlationScope);
-        
-        public static void TrackAction(this ILogger self, Action action, string type, JToken customData = null, CorrelationScope correlationScope = null)
+
+        public static void TrackAction(this ILogger self, Action action, string type, CorrelationScope correlationScope)
+            => self.TrackAction(action, type, null, correlationScope);
+
+        public static void TrackAction(this ILogger self, Action action, string type, JToken customData, CorrelationScope correlationScope)
         {
             using (self.Track(type, customData, correlationScope))
                 action();
@@ -72,17 +79,22 @@ namespace DotJEM.Diagnostic
             => self.TrackFunction(func, type, customData, createCorrelationScope ? new CorrelationScope() : null);
 
 
-        public static T TrackFunction<T>(this ILogger self, Func<T> func, JToken customData = null, CorrelationScope correlationScope = null)
+        public static T TrackFunction<T>(this ILogger self, Func<T> func, CorrelationScope correlationScope)
+            => self.TrackFunction(func, func.Method.Name, null, correlationScope);
+
+        public static T TrackFunction<T>(this ILogger self, Func<T> func, JToken customData, CorrelationScope correlationScope)
             => self.TrackFunction(func, func.Method.Name, customData, correlationScope);
 
-        public static T TrackFunction<T>(this ILogger self, Func<T> func, object customData, CorrelationScope correlationScope = null)
+        public static T TrackFunction<T>(this ILogger self, Func<T> func, object customData, CorrelationScope correlationScope)
             => self.TrackFunction(func, func.Method.Name, customData, correlationScope);
 
-        public static T TrackFunction<T>(this ILogger self, Func<T> func, string type, object customData, CorrelationScope correlationScope = null)
+        public static T TrackFunction<T>(this ILogger self, Func<T> func, string type, object customData, CorrelationScope correlationScope)
             => self.TrackFunction(func, type, TransformObject(customData), correlationScope);
 
+        public static T TrackFunction<T>(this ILogger self, Func<T> func, string type, CorrelationScope correlationScope)
+            => self.TrackFunction(func, type, null, correlationScope);
 
-        public static T TrackFunction<T>(this ILogger self, Func<T> func, string type, JToken customData = null, CorrelationScope correlationScope = null)
+        public static T TrackFunction<T>(this ILogger self, Func<T> func, string type, JToken customData, CorrelationScope correlationScope)
         {
             using (self.Track(type, customData, correlationScope))
                 return func();

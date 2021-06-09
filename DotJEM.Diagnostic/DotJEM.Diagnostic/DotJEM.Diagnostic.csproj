@@ -16,7 +16,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="DotJEM.AdvParsers" Version="1.1.1" />
+    <PackageReference Include="DotJEM.AdvParsers" Version="1.1.7" />
     <PackageReference Include="Newtonsoft.Json" Version="12.0.2" />
   </ItemGroup>
 
