@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using DotJEM.Diagnostic.Common;
@@ -8,13 +9,47 @@ using DotJEM.Diagnostic.Model;
 
 namespace DotJEM.Diagnostic.Writers.NonBlocking
 {
+    public class TraceQueue
+    {
+        private int count = 0;
+        private readonly object padlock = new object();
+        private readonly Queue<TraceEvent> events = new Queue<TraceEvent>();
+
+        public bool HasItems => count > 0;
+
+        public void Enqueue(TraceEvent trace)
+        {
+            lock (padlock)
+            {
+                events.Enqueue(trace);
+                Interlocked.Increment(ref count);
+                Monitor.Pulse(padlock);
+            }
+        }
+
+        public TraceEvent[] Dequeue(int max)
+        {
+            lock (padlock)
+            {
+                while (count < 1) Monitor.Wait(padlock);
+
+                int take = Math.Min(count, max);
+                Interlocked.Add(ref count, -take);
+                TraceEvent[] batch = new TraceEvent[take];
+                for (int i = 0; i < take; i++)
+                    batch[i] = events.Dequeue();
+                return batch;
+            }
+        }
+    }
+
     /// <summary>
     /// Provides a <see cref="ITraceWriter"/> that doesn't block while waiting for the IO layer when writing out trace events.
     /// Instead it Queues each event on a Queue and pulses a writer thread.
     /// </summary>
     public class QueuingTraceWriter : Disposable, ITraceWriter
     {
-        private readonly Queue<TraceEvent> eventsQueue = new Queue<TraceEvent>();
+        private readonly TraceQueue eventsQueue = new TraceQueue();
         private readonly IWriterManger writerManager;
         private readonly ITraceEventFormatter formatter;
         private readonly ILogArchiver archiver;
@@ -24,10 +59,8 @@ namespace DotJEM.Diagnostic.Writers.NonBlocking
 
         // Have a look at: TODO: https://docs.microsoft.com/en-us/dotnet/api/system.threading.tasks.dataflow.itargetblock-1?view=netcore-2.2
 
-        private readonly object padlock = new object();
-        private readonly Thread workerThread;
         private readonly Queue<TaskCompletionSource<byte>> awaitingFlush = new Queue<TaskCompletionSource<byte>>();
-        private bool started = false;
+        private readonly IWorkerThread workerThread;
 
         public QueuingTraceWriter(string fileName, long maxSize, int maxFiles, bool zip, ITraceEventFormatter formatter = null)
             : this(new WriterManger(fileName, maxSize), formatter, (zip ? (ILogArchiver)new ZippingLogArchiver(maxFiles, maxSize * 10) : new DeletingLogArchiver(maxFiles)), new DefaultThreadFactory())
@@ -42,84 +75,45 @@ namespace DotJEM.Diagnostic.Writers.NonBlocking
             this.workerThread = (factory ?? new DefaultThreadFactory()).Create(SyncWriteLoop);
         }
 
-        public Task Write(TraceEvent trace)
+        public Task WriteAsync(TraceEvent trace)
         {
             if (trace == null) throw new ArgumentNullException(nameof(trace));
             if (Disposed)
                 return Task.CompletedTask;
 
-            lock (padlock)
+            return Task.Run(() =>
             {
                 eventsQueue.Enqueue(trace);
-            }
-            EnsureWriteLoop();
-            Pulse();
-            return Task.CompletedTask;
+                workerThread.Start();
+            });
         }
 
-        private void Pulse()
-        {
-            lock (padlock) Monitor.PulseAll(padlock);
-        }
-
-        public Task AsyncFlush()
+        public Task FlushAsync()
         {
             TaskCompletionSource<byte> wait = new TaskCompletionSource<byte>(TaskCreationOptions.RunContinuationsAsynchronously);
             awaitingFlush.Enqueue(wait);
-
-            lock (padlock) Monitor.PulseAll(padlock);
-
             return wait.Task;
         }
 
         private void Flush()
         {
-            bool replaced = false;
-            while (eventsQueue.Count > 16)
+            while (eventsQueue.HasItems)
             {
-                replaced |= BufferedWrite();
-            }
-            replaced |= BufferedWrite();
-            replaced |= writerManager.Flush();
+                string[] lines = eventsQueue
+                    .Dequeue(128)
+                    .Select(formatter.Format)
+                    .ToArray();
 
-            if (replaced) archiver.Archive(writerManager);
+                if (writerManager.WriteLines(lines))
+                    archiver.Archive(writerManager);
+
+            }
+
+            if (writerManager.Flush())
+                archiver.Archive(writerManager);
 
             while (awaitingFlush.Count > 0)
                 awaitingFlush.Dequeue().TrySetResult(1);
-        }
-
-        private bool BufferedWrite()
-        {
-            int count = Math.Min(eventsQueue.Count, 64);
-            if (count < 1)
-                return false;
-
-            string[] lines = new string[count];
-            for (int i = 0; i < count; i++)
-            {
-                lock (padlock)
-                {
-                    TraceEvent next = eventsQueue.Dequeue();
-                    lines[i] = formatter.Format(next);
-                }
-            }
-
-            return writerManager.WriteLines(lines);
-        }
-
-        private void EnsureWriteLoop()
-        {
-            if (started)
-                return;
-
-            lock (padlock)
-            {
-                if (started)
-                    return;
-
-                started = true;
-                workerThread.Start();
-            }
         }
 
         private void SyncWriteLoop()
@@ -128,16 +122,9 @@ namespace DotJEM.Diagnostic.Writers.NonBlocking
             {
                 try
                 {
-                    lock (padlock)
-                    {
-                        while (eventsQueue.Count < 1)
-                            Monitor.Wait(padlock);
-
-                        Flush();
-
-                        if (Disposed)
-                            break;
-                    }
+                    Flush();
+                    if (Disposed)
+                        break;
                 }
                 catch (ThreadAbortException)
                 {
@@ -156,8 +143,7 @@ namespace DotJEM.Diagnostic.Writers.NonBlocking
             if (!disposing)
                 return;
 
-            workerThread.Abort();
-            workerThread.Join();
+            workerThread.Dispose();
         }
     }
 }

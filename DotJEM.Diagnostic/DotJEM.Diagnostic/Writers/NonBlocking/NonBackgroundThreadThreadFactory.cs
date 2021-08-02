@@ -1,9 +1,10 @@
-﻿using System.Threading;
+﻿using System;
+using System.Threading;
 
 namespace DotJEM.Diagnostic.Writers.NonBlocking
 {
     public class NonBackgroundThreadThreadFactory : IThreadFactory
     {
-        public Thread Create(ThreadStart loop) => new Thread(loop) { IsBackground = false };
+        public IWorkerThread Create(Action loop) => new WorkerThread(loop, false);
     }
 }

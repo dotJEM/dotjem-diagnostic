@@ -45,7 +45,7 @@ namespace DotJEM.Diagnostic.Writers.NonBlocking
             if (currentWriter == null)
                 return currentWriter = SafeOpen();
             
-            currentWriter.Close();
+            currentWriter.Flush();
             currentWriter.Dispose();
             currentWriter = null;
             currentFile.MoveTo(NameProvider.Unique());

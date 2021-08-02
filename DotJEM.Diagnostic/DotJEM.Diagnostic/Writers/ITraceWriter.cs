@@ -7,8 +7,8 @@ namespace DotJEM.Diagnostic.Writers
 {
     public interface ITraceWriter : IDisposable
     {
-        Task Write(TraceEvent trace);
-        Task AsyncFlush();
+        Task WriteAsync(TraceEvent trace);
+        Task FlushAsync();
     }
 
     public class ConsoleWriter : Disposable, ITraceWriter
@@ -21,9 +21,9 @@ namespace DotJEM.Diagnostic.Writers
         }
 
         //TODO: Formatter.
-        public Task Write(TraceEvent trace) 
+        public Task WriteAsync(TraceEvent trace) 
             => Task.Run(() => Console.WriteLine(formatter.Format(trace)));
 
-        public Task AsyncFlush() => Task.CompletedTask;
+        public Task FlushAsync() => Task.CompletedTask;
     }
 }

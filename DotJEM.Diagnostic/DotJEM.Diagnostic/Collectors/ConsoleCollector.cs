@@ -38,7 +38,7 @@ namespace DotJEM.Diagnostic.Collectors
             this.writer = writer;
         }
 
-        public Task Collect(TraceEvent trace) => writer.Write(trace);
+        public Task Collect(TraceEvent trace) => writer.WriteAsync(trace);
     }
 
 }

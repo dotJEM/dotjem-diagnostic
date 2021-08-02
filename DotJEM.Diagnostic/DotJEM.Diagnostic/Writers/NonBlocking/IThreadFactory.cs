@@ -1,9 +1,15 @@
-﻿using System.Threading;
+﻿using System;
+using System.Threading;
 
 namespace DotJEM.Diagnostic.Writers.NonBlocking
 {
     public interface IThreadFactory
     {
-        Thread Create(ThreadStart loop);
+        IWorkerThread Create(Action loop);
+    }
+
+    public interface IWorkerThread : IDisposable
+    {
+        void Start();
     }
 }
