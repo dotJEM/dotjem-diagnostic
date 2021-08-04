@@ -2,13 +2,15 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
-    <PackageLicenseUrl>https://github.com/dotJEM/dotjem-diagnostic/blob/master/LICENSE</PackageLicenseUrl>
+    <PackageLicenseUrl></PackageLicenseUrl>
     <PackageProjectUrl>https://github.com/dotJEM/dotjem-diagnostic</PackageProjectUrl>
     <RepositoryType>Git</RepositoryType>
     <Authors>DotJEM</Authors>
     <Company>N/A</Company>
     <Copyright>Copyright © DotJEM 2019</Copyright>
     <PackageVersion></PackageVersion>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/dotJEM/dotjem-diagnostic</RepositoryUrl>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -19,5 +21,10 @@
     <PackageReference Include="DotJEM.AdvParsers" Version="1.1.7" />
     <PackageReference Include="Newtonsoft.Json" Version="12.0.2" />
   </ItemGroup>
+
+    <PropertyGroup>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    </PropertyGroup>
 
 </Project>
