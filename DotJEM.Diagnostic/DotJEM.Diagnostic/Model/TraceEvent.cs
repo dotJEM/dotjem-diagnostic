@@ -1,22 +1,53 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using DotJEM.Diagnostic.Correlation;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 namespace DotJEM.Diagnostic.Model
 {
+    /// <summary>
+    /// 
+    /// </summary>
     public class TraceEvent
     {
-        public string Type { get; }
-        public DateTime Time { get; }
-        public string Correlation { get; }
-        public CustomData[] CustomData { get; }
-        public JToken CustomObject { get; }
-
         private readonly FormattableString toStringImpl;
 
-        public TraceEvent(string type, DateTime time, string correlation, IEnumerable<CustomData> customData, JToken customObject)
+        /// <summary>
+        /// 
+        /// </summary>
+        public string Type { get; }
+        
+        /// <summary>
+        /// 
+        /// </summary>
+        public DateTime Time { get; }
+        
+        /// <summary>
+        /// 
+        /// </summary>
+        public CorrelatorToken Correlation { get; }
+        
+        /// <summary>
+        /// 
+        /// </summary>
+        public CustomData[] CustomData { get; }
+        
+        /// <summary>
+        /// 
+        /// </summary>
+        public JToken CustomObject { get; }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="type"></param>
+        /// <param name="time"></param>
+        /// <param name="correlation"></param>
+        /// <param name="customData"></param>
+        /// <param name="customObject"></param>
+        public TraceEvent(string type, DateTime time, CorrelatorToken correlation, IEnumerable<CustomData> customData, JToken customObject = null)
         {
             Type = type;
             Time = time;

@@ -50,20 +50,20 @@
              </list>
              </summary>
         </member>
-        <member name="M:DotJEM.Diagnostic.HighPrecisionLogger.#ctor(DotJEM.Diagnostic.Collectors.ITraceEventCollector)">
+        <member name="M:DotJEM.Diagnostic.HighPrecisionLogger.#ctor(DotJEM.Diagnostic.Collectors.ITraceCollector{DotJEM.Diagnostic.Model.TraceEvent})">
             <summary>
             
             </summary>
             <param name="collector"></param>
         </member>
-        <member name="M:DotJEM.Diagnostic.HighPrecisionLogger.#ctor(DotJEM.Diagnostic.Collectors.ITraceEventCollector,System.ValueTuple{System.String,DotJEM.Diagnostic.DataProviders.ICustomDataProvider}[])">
+        <member name="M:DotJEM.Diagnostic.HighPrecisionLogger.#ctor(DotJEM.Diagnostic.Collectors.ITraceCollector{DotJEM.Diagnostic.Model.TraceEvent},System.ValueTuple{System.String,DotJEM.Diagnostic.DataProviders.ICustomDataProvider}[])">
             <summary>
             
             </summary>
             <param name="collector"></param>
             <param name="providers"></param>
         </member>
-        <member name="M:DotJEM.Diagnostic.HighPrecisionLogger.#ctor(DotJEM.Diagnostic.Collectors.ITraceEventCollector,System.Collections.Generic.Dictionary{System.String,DotJEM.Diagnostic.DataProviders.ICustomDataProvider})">
+        <member name="M:DotJEM.Diagnostic.HighPrecisionLogger.#ctor(DotJEM.Diagnostic.Collectors.ITraceCollector{DotJEM.Diagnostic.Model.TraceEvent},System.Collections.Generic.Dictionary{System.String,DotJEM.Diagnostic.DataProviders.ICustomDataProvider})">
             <summary>
             
             </summary>
@@ -78,9 +78,76 @@
             <param name="customData"></param>
             <returns></returns>
         </member>
+        <member name="T:DotJEM.Diagnostic.Model.TraceEvent">
+            <summary>
+            
+            </summary>
+        </member>
+        <member name="P:DotJEM.Diagnostic.Model.TraceEvent.Type">
+            <summary>
+            
+            </summary>
+        </member>
+        <member name="P:DotJEM.Diagnostic.Model.TraceEvent.Time">
+            <summary>
+            
+            </summary>
+        </member>
+        <member name="P:DotJEM.Diagnostic.Model.TraceEvent.Correlation">
+            <summary>
+            
+            </summary>
+        </member>
+        <member name="P:DotJEM.Diagnostic.Model.TraceEvent.CustomData">
+            <summary>
+            
+            </summary>
+        </member>
+        <member name="P:DotJEM.Diagnostic.Model.TraceEvent.CustomObject">
+            <summary>
+            
+            </summary>
+        </member>
+        <member name="M:DotJEM.Diagnostic.Model.TraceEvent.#ctor(System.String,System.DateTime,DotJEM.Diagnostic.Correlation.CorrelatorToken,System.Collections.Generic.IEnumerable{DotJEM.Diagnostic.Model.CustomData},Newtonsoft.Json.Linq.JToken)">
+            <summary>
+            
+            </summary>
+            <param name="type"></param>
+            <param name="time"></param>
+            <param name="correlation"></param>
+            <param name="customData"></param>
+            <param name="customObject"></param>
+        </member>
+        <member name="T:DotJEM.Diagnostic.Model.TraceEventGraph">
+            <summary>
+            
+            </summary>
+        </member>
+        <member name="P:DotJEM.Diagnostic.Model.TraceEventGraph.Lines">
+            <summary>
+            
+            </summary>
+        </member>
+        <member name="P:DotJEM.Diagnostic.Model.TraceEventGraph.Root">
+            <summary>
+            
+            </summary>
+        </member>
+        <member name="M:DotJEM.Diagnostic.Model.TraceEventGraph.#ctor(System.Collections.Generic.IReadOnlyList{DotJEM.Diagnostic.Model.TraceEvent},DotJEM.Diagnostic.Model.TraceEventNode)">
+            <summary>
+            
+            </summary>
+            <param name="lines"></param>
+            <param name="root"></param>
+        </member>
+        <member name="T:DotJEM.Diagnostic.Model.TraceEventNode">
+            <summary>
+            
+            </summary>
+        </member>
         <member name="T:DotJEM.Diagnostic.Writers.NonBlocking.QueuingTraceWriter">
             <summary>
-            Provides a <see cref="T:DotJEM.Diagnostic.Writers.ITraceWriter"/> that doesn't block while waiting for the IO layer when writing out trace events.
+            Provides a <see cref="!:ITraceWriter"/> that doesn't block while waiting for the IO layer when writing out trace events.
             Instead it Queues each event on a Queue and pulses a writer thread.
             </summary>
         </member>

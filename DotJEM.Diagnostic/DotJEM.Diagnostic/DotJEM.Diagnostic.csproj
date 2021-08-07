@@ -9,6 +9,7 @@
     <Company>N/A</Company>
     <Copyright>Copyright © DotJEM 2019</Copyright>
     <PackageVersion></PackageVersion>
+    <LangVersion>latest</LangVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">

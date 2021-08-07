@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using DotJEM.Diagnostic.Collectors;
 using DotJEM.Diagnostic.DataProviders;
+using DotJEM.Diagnostic.Model;
 
 namespace DotJEM.Diagnostic
 {
@@ -20,9 +21,9 @@ namespace DotJEM.Diagnostic
     {
         private readonly HashSet<string> names;
         private readonly List<(string Name, ICustomDataProvider Provider)> providers;
-        private readonly ITraceEventCollector collector;
+        private readonly ITraceCollector<TraceEvent> collector;
 
-        public HighPrecisionLoggerBuilder(ITraceEventCollector collector)
+        public HighPrecisionLoggerBuilder(ITraceCollector<TraceEvent> collector)
         {
             this.collector = collector;
             this.providers = new List<(string Name, ICustomDataProvider Provider)>

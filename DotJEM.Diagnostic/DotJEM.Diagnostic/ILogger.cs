@@ -63,28 +63,27 @@ namespace DotJEM.Diagnostic
     /// </summary>
     public class HighPrecisionLogger : ILogger
     {
-        private readonly ITraceEventCollector collector;
+        private readonly ITraceCollector<TraceEvent> collector;
         private readonly Dictionary<string, ICustomDataProvider> providers;
 
         /// <summary>
         /// 
         /// </summary>
         /// <param name="collector"></param>
-        public HighPrecisionLogger(ITraceEventCollector collector) 
+        public HighPrecisionLogger(ITraceCollector<TraceEvent> collector) 
             : this(collector, 
                 ("Identity", new IdentityProvider()),
                 ("Thread", new ThreadIdProvider()),
                 ("Process", new ProcessIdProvider())
-                )
-        {
-        }
+                ) { }
+
 
         /// <summary>
         /// 
         /// </summary>
         /// <param name="collector"></param>
         /// <param name="providers"></param>
-        public HighPrecisionLogger(ITraceEventCollector collector, params (string Name, ICustomDataProvider Provider)[] providers)
+        public HighPrecisionLogger(ITraceCollector<TraceEvent> collector, params (string Name, ICustomDataProvider Provider)[] providers)
             : this(collector, providers.ToDictionary(tuple => tuple.Name, tuple => tuple.Provider))
         {
         }
@@ -94,7 +93,7 @@ namespace DotJEM.Diagnostic
         /// </summary>
         /// <param name="collector"></param>
         /// <param name="providers"></param>
-        public HighPrecisionLogger(ITraceEventCollector collector, Dictionary<string, ICustomDataProvider> providers)
+        public HighPrecisionLogger(ITraceCollector<TraceEvent> collector, Dictionary<string, ICustomDataProvider> providers)
         {
             this.providers = providers;
             this.collector = collector;
@@ -111,14 +110,13 @@ namespace DotJEM.Diagnostic
             if (!(customData is JToken token))
                 token = customData != null ? JToken.FromObject(customData) : null;
 
-            TraceEvent evt = new TraceEvent(
+            TraceEvent evt = new(
                 type,
                 HighResolutionTime.Now,
-                CorrelationScope.Identifier,
+                CorrelationScope.CurrentToken,
                 providers.Select(p => p.Value.Generate(p.Key)),
                 token);
             await collector.Collect(evt).ConfigureAwait(false);
         }
     }
-
 }

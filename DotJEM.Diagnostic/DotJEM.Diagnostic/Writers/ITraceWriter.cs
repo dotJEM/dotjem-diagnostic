@@ -2,28 +2,26 @@
 using System.Threading.Tasks;
 using DotJEM.Diagnostic.Common;
 using DotJEM.Diagnostic.Model;
+using DotJEM.Diagnostic.Writers.Formatter;
 
 namespace DotJEM.Diagnostic.Writers
 {
-    public interface ITraceWriter : IDisposable
+    public interface ITraceWriter<TEvent> : IDisposable
     {
-        Task Write(TraceEvent trace);
+        Task Write(TEvent trace);
         Task AsyncFlush();
     }
 
-    public class ConsoleWriter : Disposable, ITraceWriter
+    public class ConsoleWriter<TEvent> : Disposable, ITraceWriter<TEvent>
     {
-        private readonly ITraceEventFormatter formatter;
+        private readonly ITraceFormatter<TEvent> formatter;
 
-        public ConsoleWriter(ITraceEventFormatter formatter = null)
+        public ConsoleWriter(ITraceFormatter<TEvent> formatter = null)
         {
-            this.formatter = formatter ?? new DefaultTraceEventFormatter();
+            this.formatter = formatter ?? new DefaultTraceFormatter<TEvent>();
         }
 
-        //TODO: Formatter.
-        public Task Write(TraceEvent trace) 
-            => Task.Run(() => Console.WriteLine(formatter.Format(trace)));
-
+        public Task Write(TEvent trace) => Task.Run(() => Console.WriteLine(formatter.Format(trace)));
         public Task AsyncFlush() => Task.CompletedTask;
     }
 }
