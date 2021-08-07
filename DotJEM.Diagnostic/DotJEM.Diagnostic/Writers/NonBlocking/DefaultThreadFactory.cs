@@ -10,7 +10,7 @@ namespace DotJEM.Diagnostic.Writers.NonBlocking
 
     public class WorkerThread : IWorkerThread
     {
-        private long started = 1;
+        private long started = 0;
         private readonly Thread workerThread;
 
         public WorkerThread(Action threadStart, bool isBackground)
