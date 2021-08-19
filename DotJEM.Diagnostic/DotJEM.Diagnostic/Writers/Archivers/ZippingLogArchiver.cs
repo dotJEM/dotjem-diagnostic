@@ -3,8 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using DotJEM.Diagnostic.Writers.NonBlocking;
 
-namespace DotJEM.Diagnostic.Writers.NonBlocking
+namespace DotJEM.Diagnostic.Writers.Archivers
 {
     public class ZippingLogArchiver : ILogArchiver
     {

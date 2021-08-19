@@ -12,6 +12,7 @@ using DotJEM.Diagnostic.Correlation;
 using DotJEM.Diagnostic.DataProviders;
 using DotJEM.Diagnostic.Model;
 using DotJEM.Diagnostic.Writers;
+using DotJEM.Diagnostic.Writers.Archivers;
 using DotJEM.Diagnostic.Writers.NonBlocking;
 using Newtonsoft.Json.Linq;
 
@@ -35,10 +36,19 @@ namespace Demo
             Directory.CreateDirectory("logs");
             var collector = new CompositeTraceEventCollector(
                 new TraceEventCollector(new ConsoleWriter()),
-                new TraceEventCollector(writer = new QueuingTraceWriter("logs\\trace.log", 1024*1024*4, 10, true, new DefaultTraceEventFormatter()))
+                new TraceEventCollector(writer = new QueuingTraceWriter("logs\\trace.log", 1024*1024*4, 10, true, new DefaultTraceEventFormatter())),
+                new TraceEventCollector(writer = new QueuingTraceWriter(
+                    new FixedFileWriterManger("logs\\trace.log", 1024*1024*4), new DefaultTraceEventFormatter(), new ZippingLogArchiver(10, 1024*1024*40), new DefaultThreadFactory()) )
                 );
 
-            _logger = new HighPrecisionLoggerBuilder(collector)
+        //public QueuingTraceWriter(string fileName, long maxSize, int maxFiles, bool zip, ITraceEventFormatter formatter = null)
+        //    : this(new WriterManger(fileName, maxSize), formatter, (zip ? (ILogArchiver)new ZippingLogArchiver(maxFiles, maxSize * 10) : new DeletingLogArchiver(maxFiles)), new DefaultThreadFactory())
+        //{
+        //}
+
+            _logger = new HighPrecisionLoggerBuilder()
+                .AddCollector(new TraceEventCollector(new ConsoleWriter()))
+                .AddCollector(new TraceEventCollector(writer = new QueuingTraceWriter("logs\\trace.log", 1024*1024*4, 10, true, new DefaultTraceEventFormatter())))
                 .AddProvider("random", new RandomProvider())
                 .Build();
 

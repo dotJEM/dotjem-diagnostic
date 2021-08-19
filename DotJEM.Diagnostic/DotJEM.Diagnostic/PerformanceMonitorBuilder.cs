@@ -8,6 +8,10 @@ namespace DotJEM.Diagnostic
 {
     public interface ILoggerBuilder
     {
+        ILoggerBuilder AddCollector(ITraceEventCollector collector);
+        ILoggerBuilder AddCollector(Func<ITraceEventCollectorBuilder, ITraceEventCollectorBuilder> factory);
+        ILoggerBuilder ClearCollectors();
+
         ILoggerBuilder AddProvider(string name, ICustomDataProvider provider);
         ILoggerBuilder ClearProviders();
         ILoggerBuilder InsertProvider(int index, string name, ICustomDataProvider provider);
@@ -16,15 +20,51 @@ namespace DotJEM.Diagnostic
         ILogger Build();
     }
 
+    public interface ITraceEventCollectorBuilder
+    {
+        ITraceEventCollectorBuilder Add(ITraceEventCollector collector);
+        ITraceEventCollectorBuilder Clear();
+
+        ITraceEventCollector Build();
+    }
+
+    public class CompositeTraceEventCollectorBuilder : ITraceEventCollectorBuilder
+    {
+        private readonly List<ITraceEventCollector> collectors = new List<ITraceEventCollector>();
+
+        public ITraceEventCollectorBuilder Add(ITraceEventCollector collector)
+        {
+            collectors.Add(collector);
+            return this;
+        }
+
+        public ITraceEventCollectorBuilder Clear()
+        {
+            collectors.Clear();
+            return this;
+        }
+
+        public ITraceEventCollector Build()
+        {
+            if(!collectors.Any())
+                return new NullTraceEventCollector();
+
+            if (collectors.Count == 1)
+                return collectors.Single();
+
+            return new CompositeTraceEventCollector(collectors);
+        }
+    }
+
     public class HighPrecisionLoggerBuilder : ILoggerBuilder
     {
         private readonly HashSet<string> names;
         private readonly List<(string Name, ICustomDataProvider Provider)> providers;
-        private readonly ITraceEventCollector collector;
+        private readonly ITraceEventCollectorBuilder collector;
 
-        public HighPrecisionLoggerBuilder(ITraceEventCollector collector)
+        public HighPrecisionLoggerBuilder()
         {
-            this.collector = collector;
+            this.collector = new CompositeTraceEventCollectorBuilder();
             this.providers = new List<(string Name, ICustomDataProvider Provider)>
             {
                 ("Identity", new IdentityProvider()),
@@ -33,6 +73,25 @@ namespace DotJEM.Diagnostic
             };
             this.names = new HashSet<string>(providers.Select(tuple => tuple.Name));
         }
+        
+        
+        public ILoggerBuilder ClearCollectors()
+        {
+            this.collector.Clear();
+            return this;
+        }
+
+
+        public ILoggerBuilder AddCollector(ITraceEventCollector collector)
+        {
+            this.collector.Add(collector);
+            return this;
+        }
+
+
+        public ILoggerBuilder AddCollector(Func<ITraceEventCollectorBuilder, ITraceEventCollectorBuilder> factory) 
+            => AddCollector(factory(new CompositeTraceEventCollectorBuilder()).Build());
+
 
         public ILoggerBuilder ClearProviders()
         {
@@ -88,7 +147,7 @@ namespace DotJEM.Diagnostic
 
         public ILogger Build()
         {
-            return new HighPrecisionLogger(collector, providers.ToDictionary(t => t.Name, t => t.Provider));
+            return new HighPrecisionLogger(collector.Build(), providers.ToDictionary(t => t.Name, t => t.Provider));
         }
     }
 }

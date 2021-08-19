@@ -8,7 +8,7 @@ using DotJEM.Diagnostic.Writers;
 
 namespace DotJEM.Diagnostic.Collectors
 {
-    public interface ITraceEventCollector
+    public interface ITraceEventCollector 
     {
         Task Collect(TraceEvent trace);
     }
@@ -18,14 +18,13 @@ namespace DotJEM.Diagnostic.Collectors
         private readonly List<ITraceEventCollector> collectors;
 
         public CompositeTraceEventCollector(params ITraceEventCollector[] collectors) 
-            : this(collectors.AsEnumerable())
-        {
-        }
+            : this(collectors.AsEnumerable()) { }
 
         public CompositeTraceEventCollector(IEnumerable<ITraceEventCollector> collectors)
         {
             this.collectors = collectors.ToList();
         }
+
         public Task Collect(TraceEvent trace) => Task.WhenAll(collectors.Select(collector => collector.Collect(trace)));
     }
 
@@ -41,4 +40,11 @@ namespace DotJEM.Diagnostic.Collectors
         public Task Collect(TraceEvent trace) => writer.WriteAsync(trace);
     }
 
+    public class NullTraceEventCollector : ITraceEventCollector
+    {
+        public Task Collect(TraceEvent trace)
+        {
+            return Task.CompletedTask;
+        }
+    }
 }

@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using DotJEM.Diagnostic.Common;
 using DotJEM.Diagnostic.Model;
+using DotJEM.Diagnostic.Writers.Archivers;
 
 namespace DotJEM.Diagnostic.Writers.NonBlocking
 {
@@ -63,14 +64,14 @@ namespace DotJEM.Diagnostic.Writers.NonBlocking
         private readonly IWorkerThread workerThread;
 
         public QueuingTraceWriter(string fileName, long maxSize, int maxFiles, bool zip, ITraceEventFormatter formatter = null)
-            : this(new WriterManger(fileName, maxSize), formatter, (zip ? (ILogArchiver)new ZippingLogArchiver(maxFiles, maxSize * 10) : new DeletingLogArchiver(maxFiles)), new DefaultThreadFactory())
+            : this(new DefaultWriterManager(fileName, maxSize), formatter, (zip ? (ILogArchiver)new ZippingLogArchiver(maxFiles, maxSize * 10) : new DeletingLogArchiver(maxFiles)), new DefaultThreadFactory())
         {
         }
 
         public QueuingTraceWriter(IWriterManger writerManager, ITraceEventFormatter formatter = null, ILogArchiver archiver = null, IThreadFactory factory = null)
         {
             this.writerManager = writerManager;
-            this.archiver = archiver;
+            this.archiver = archiver ?? new NullLogArchiver();
             this.formatter = formatter ?? new DefaultTraceEventFormatter();
             this.workerThread = (factory ?? new DefaultThreadFactory()).Create(SyncWriteLoop);
         }
@@ -146,4 +147,6 @@ namespace DotJEM.Diagnostic.Writers.NonBlocking
             workerThread.Dispose();
         }
     }
+
+
 }

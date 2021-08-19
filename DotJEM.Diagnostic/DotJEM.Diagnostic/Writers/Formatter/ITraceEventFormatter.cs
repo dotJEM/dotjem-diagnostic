@@ -6,6 +6,7 @@ namespace DotJEM.Diagnostic.Writers
     {
         string Format(TraceEvent evt);
     }
+
     public class DefaultTraceEventFormatter : ITraceEventFormatter
     {
         public string Format(TraceEvent evt) => evt.ToString();

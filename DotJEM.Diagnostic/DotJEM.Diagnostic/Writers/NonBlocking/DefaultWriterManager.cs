@@ -8,30 +8,38 @@ using DotJEM.Diagnostic.Writers.Output;
 
 namespace DotJEM.Diagnostic.Writers.NonBlocking
 {
-    public class WriterManger : IWriterManger
+    /// <summary>
+    /// Implementation of the <see cref="IWriterManger"/> interface which will always use a unique file name when opening a new writer.
+    /// </summary>
+    /// <remarks>
+    /// The default writer manager will always ensure a unique file name everytime a new log file is opened for logging.
+    /// This also means that this manager will write to a new file across application shutdown and startup.
+    /// </remarks>
+    public class DefaultWriterManager : IWriterManger
     {
         private readonly long maxSizeInBytes;
         private readonly IWriterFactory writerFactory;
         private ITextWriter currentWriter;
         private FileInfo currentFile;
-
+        
         public IFileNameProvider NameProvider { get; }
 
-        public WriterManger(string fileName) : this(new FileNameProvider(fileName), new StreamWriterFactory(), 64.KiloBytes()) { }
-        public WriterManger(string fileName, long maxSizeInBytes) : this(new FileNameProvider(fileName), new StreamWriterFactory(), maxSizeInBytes) { }
+        public DefaultWriterManager(string fileName) : this(new FileNameProvider(fileName), new StreamWriterFactory(), 64.KiloBytes()) { }
+        public DefaultWriterManager(string fileName, long maxSizeInBytes) : this(new FileNameProvider(fileName), new StreamWriterFactory(), maxSizeInBytes) { }
 
-        public WriterManger(IFileNameProvider fileNameProvider, IWriterFactory writerFactory, long maxSizeInBytes)
+        public DefaultWriterManager(IFileNameProvider fileNameProvider, IWriterFactory writerFactory, long maxSizeInBytes)
         {
             if (maxSizeInBytes != 0 && maxSizeInBytes < 8.KiloBytes()) throw new ArgumentOutOfRangeException(nameof(maxSizeInBytes));
             
             this.NameProvider = fileNameProvider;
             this.writerFactory = writerFactory;
             this.maxSizeInBytes = maxSizeInBytes;
-            this.currentFile = new FileInfo(fileNameProvider.FullName);
+            this.currentFile = new FileInfo(fileNameProvider.Unique());
 
             Directory.CreateDirectory(fileNameProvider.Directory);
         }
 
+        
         public ITextWriter Acquire() => Acquire(out _);
 
         public ITextWriter Acquire(out bool replaced)
@@ -48,9 +56,7 @@ namespace DotJEM.Diagnostic.Writers.NonBlocking
             currentWriter.Flush();
             currentWriter.Dispose();
             currentWriter = null;
-            currentFile.MoveTo(NameProvider.Unique());
-            currentFile = new FileInfo(NameProvider.FullName);
-
+            currentFile = new FileInfo(NameProvider.Unique());
             return currentWriter = SafeOpen();
         }
 
@@ -64,10 +70,9 @@ namespace DotJEM.Diagnostic.Writers.NonBlocking
             int count = 0;
             while (true)
             {
-                if (writerFactory.TryOpenWithRetries(currentFile.FullName, 20, CancellationToken.None, out ITextWriter writer))
+                if (writerFactory.TryOpen(currentFile.FullName, out ITextWriter writer))
                     return writer;
-
-                currentFile = new FileInfo(NameProvider.Id(count));
+                currentFile = new FileInfo(NameProvider.Unique());
                 count++;
             }
         }
