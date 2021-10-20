@@ -41,7 +41,7 @@ test:
 
 on_success:
 - curl -s -o copilot https://copilot.blackducksoftware.com/ci/appveyor/scripts/upload
-- bash copilot
+- bash copilot && exit 0
 
 deploy:
   provider: NuGet
