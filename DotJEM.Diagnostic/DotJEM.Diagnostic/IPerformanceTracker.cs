@@ -12,6 +12,15 @@ namespace DotJEM.Diagnostic
         void Commit(JToken customData = null);
     }
 
+    public class NullPerformanceTracker : IPerformanceTracker
+    {
+        public static NullPerformanceTracker SharedInstance = new NullPerformanceTracker();
+
+        public void Commit(JToken customData = null) { }
+
+        public void Dispose() { }
+    }
+
     public class PerformanceTracker : Disposable, IPerformanceTracker
     {
         private readonly string type;

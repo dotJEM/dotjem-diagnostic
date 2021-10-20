@@ -11,6 +11,9 @@ namespace DotJEM.Diagnostic
 
         public static IPerformanceTracker Track(this ILogger self, string type, JToken customData, CorrelationScope correlationScope)
         {
+            if (self is NullLogger)
+                return NullPerformanceTracker.SharedInstance;
+
             type = correlationScope != null
                 ? type
                 : $"{type}:{IdProvider.Default.Next}";
@@ -60,6 +63,12 @@ namespace DotJEM.Diagnostic
 
         public static void TrackAction(this ILogger self, Action action, string type, JToken customData, CorrelationScope correlationScope)
         {
+            if (self is NullLogger)
+            {
+                action();
+                return;
+            }
+
             using (self.Track(type, customData, correlationScope))
                 action();
         }
@@ -96,10 +105,14 @@ namespace DotJEM.Diagnostic
 
         public static T TrackFunction<T>(this ILogger self, Func<T> func, string type, JToken customData, CorrelationScope correlationScope)
         {
+            if (self is NullLogger)
+                return func();
+
             using (self.Track(type, customData, correlationScope))
                 return func();
         }
 
+        //TODO: Move to separate class with extensions for PerformanceTrackers.
         public static void Commit(this IPerformanceTracker self, object obj) 
             => self.Commit(TransformObject(obj));
 

@@ -15,7 +15,6 @@ using Newtonsoft.Json.Linq;
 
 namespace DotJEM.Diagnostic
 {
-
     /// <summary>
     /// Provides an interface for a HighPrecisionLogger
     /// </summary>
@@ -28,6 +27,17 @@ namespace DotJEM.Diagnostic
         /// <param name="customData"></param>
         /// <returns></returns>
         Task LogAsync(string type, object customData = null);
+    }
+
+    /// <summary>
+    /// Provides a logger that handles everything as a NOOP operation. Use this to disable logging.
+    /// </summary>
+    /// <remarks>
+    /// Many extension methods are optimized around this by using the statement "is NullLogger", but it's still adviced to also check externally.
+    /// </remarks>
+    public class NullLogger : ILogger
+    {
+        public Task LogAsync(string type, object customData = null) => Task.CompletedTask;
     }
 
     /// <summary>
