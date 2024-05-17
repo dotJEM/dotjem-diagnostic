@@ -20,12 +20,7 @@ namespace DotJEM.Diagnostic.Correlation
             :this(IdProvider.Default.Next, isolated)
         {
         }
-
-        public CorrelationScope(Guid source, bool isolated = false)
-            :this(IdProvider.Default.Compute(source), isolated)
-        {
-        }
-
+        
         private CorrelationScope(string id, bool isolated)
         {
             Parent = Current;

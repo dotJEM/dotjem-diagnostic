@@ -1,10 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
+﻿using System.Collections.Generic;
 using System.Linq;
-using System.Security.Claims;
-using System.Threading;
 using System.Threading.Tasks;
 using DotJEM.Diagnostic.Collectors;
 using DotJEM.Diagnostic.Common;
@@ -84,10 +79,8 @@ namespace DotJEM.Diagnostic
             : this(collector, 
                 ("Identity", new IdentityProvider()),
                 ("Thread", new ThreadIdProvider()),
-                ("Process", new ProcessIdProvider())
-                )
-        {
-        }
+                ("Process", new ProcessIdProvider()))
+        { }
 
         /// <summary>
         /// 

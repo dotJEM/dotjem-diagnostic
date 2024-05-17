@@ -13,13 +13,9 @@
     <RepositoryUrl>https://github.com/dotJEM/dotjem-diagnostic</RepositoryUrl>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <DocumentationFile>G:\Workspace\Github\dotjem-diagnostic\DotJEM.Diagnostic\DotJEM.Diagnostic\DotJEM.Diagnostic.xml</DocumentationFile>
-  </PropertyGroup>
-
   <ItemGroup>
     <PackageReference Include="DotJEM.AdvParsers" Version="1.1.7" />
-    <PackageReference Include="Newtonsoft.Json" Version="12.0.2" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
 
     <PropertyGroup>
