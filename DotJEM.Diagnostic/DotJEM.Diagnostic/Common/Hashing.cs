@@ -9,7 +9,6 @@ namespace DotJEM.Diagnostic.Common
         public static IdProvider Default { get; } = new IdProvider();
 
         private readonly int length = 8;
-        private readonly SHA256CryptoServiceProvider hasher = new SHA256CryptoServiceProvider();
         private readonly RNGCryptoServiceProvider random = new RNGCryptoServiceProvider();
 
 
@@ -26,7 +25,7 @@ namespace DotJEM.Diagnostic.Common
         {
             if (disposing)
             {
-                hasher.Dispose();
+                random.Dispose();
             }
             base.Dispose(disposing);
         }
